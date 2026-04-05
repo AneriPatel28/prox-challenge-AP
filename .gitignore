@@ -48,6 +48,7 @@ test.md
 
 # Internal notes and debug scripts
 NOTES.md
+README.md
 backend/compare_extraction.py
 data/compare_output.md
 
