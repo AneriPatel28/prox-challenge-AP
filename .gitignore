@@ -39,6 +39,7 @@ __pycache__/
 # Large generated files — reproducible by running preprocess.py + embed_and_store.py
 data/images/
 data/chroma/
+data/chroma_memory/
 
 # Source PDFs (copyrighted)
 files/
