@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
+
 // Chamfered corner clip-path
 const chamfer = (px = 10) =>
   `polygon(${px}px 0, 100% 0, 100% calc(100% - ${px}px), calc(100% - ${px}px) 100%, 0 100%, 0 ${px}px)`;
@@ -63,6 +66,11 @@ interface Props {
 }
 
 export default function QuickTopics({ onSelect }: Props) {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isLight = mounted && resolvedTheme === "light";
+
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 py-8 max-w-3xl mx-auto">
 
@@ -104,6 +112,7 @@ export default function QuickTopics({ onSelect }: Props) {
               background: "var(--bg-secondary)",
               border: "1px solid var(--border)",
               clipPath: chamfer(10),
+              boxShadow: isLight ? "0 6px 20px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)" : "none",
             }}
           >
             {/* Card header */}

@@ -20,9 +20,23 @@
     --border-subtle: #f3f4f6;
     --user-bubble:   #fff7ed;
     --user-border:   #fed7aa;
+    --hero-rgb:       245, 244, 241;
+    --hero-heading:   #1a4480;
+    --hero-sub:       rgba(26, 68, 128, 0.6);
+    --hero-scroll:    rgba(26, 68, 128, 0.7);
+    --hero-badge-bg:  rgba(26, 68, 128, 0.1);
+    --hero-badge-border: rgba(26, 68, 128, 0.3);
+    --hero-badge-text:   #1a4480;
   }
 
   .dark {
+    --hero-rgb:       10, 10, 11;
+    --hero-heading:   #ffffff;
+    --hero-sub:       rgba(255, 255, 255, 0.55);
+    --hero-scroll:    rgba(255, 255, 255, 0.3);
+    --hero-badge-bg:  rgba(56, 189, 248, 0.1);
+    --hero-badge-border: rgba(56, 189, 248, 0.25);
+    --hero-badge-text:   #38bdf8;
     --bg-primary:    #0a0a0b;
     --bg-secondary:  #111113;
     --bg-card:       #18181b;
@@ -195,13 +209,41 @@
 
 /* ── Ken Burns banner ── */
 @keyframes ken-burns {
-  0%   { transform: scale(1.04) translate(0%, 0%); }
-  35%  { transform: scale(1.10) translate(-1.2%, -0.6%); }
-  65%  { transform: scale(1.08) translate(0.8%, 0.4%); }
-  100% { transform: scale(1.04) translate(0%, 0%); }
+  0%   { transform: scale(1.0) translate(0%, 0%); }
+  35%  { transform: scale(1.03) translate(-0.5%, -0.3%); }
+  65%  { transform: scale(1.02) translate(0.3%, 0.2%); }
+  100% { transform: scale(1.0) translate(0%, 0%); }
 }
 
 .ken-burns-img {
-  animation: ken-burns 12s ease-in-out infinite;
+  animation: ken-burns 7s ease-in-out infinite;
   will-change: transform;
+}
+
+
+.hero-gradient-bottom {
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--hero-rgb), 0.45) 0%,
+    rgba(var(--hero-rgb), 0.2)  40%,
+    rgba(var(--hero-rgb), 0.8)  80%,
+    rgba(var(--hero-rgb), 1)    100%
+  );
+}
+
+.hero-gradient-side {
+  background: linear-gradient(
+    to right,
+    rgba(var(--hero-rgb), 0.65) 0%,
+    transparent 60%
+  );
+}
+
+:root:not(.dark) .hero-gradient-side {
+  background: linear-gradient(
+    to right,
+    rgba(245, 244, 241, 0.88) 0%,
+    rgba(245, 244, 241, 0.6)  35%,
+    transparent 70%
+  );
 }

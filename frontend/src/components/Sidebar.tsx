@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
 
 const WeldingArcIcon = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -52,12 +54,16 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isLight = mounted && resolvedTheme === "light";
 
   return (
     <aside
       className={`flex flex-col h-full transition-all duration-300 ease-in-out flex-shrink-0
         ${collapsed ? "w-[60px]" : "w-[220px]"}`}
-      style={{ background: "var(--bg-secondary)", borderRight: "1px solid var(--border)" }}
+      style={{ background: "var(--bg-secondary)", borderRight: `1px solid ${isLight ? "rgba(0,0,0,0.12)" : "var(--border)"}`, boxShadow: isLight ? "2px 0 12px rgba(0,0,0,0.06)" : "none" }}
     >
       {/* Logo */}
       <Link href="/" className={`flex items-center gap-3 px-4 py-5 hover:opacity-80 transition-opacity ${collapsed ? "justify-center px-0" : ""}`}>
@@ -125,19 +131,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Machine tag */}
-      {!collapsed && (
-        <div className="mx-3 mb-4 p-3 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-          <p className="text-[10px] font-mono mb-1 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Machine</p>
-          <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>Vulcan OmniPro 220</p>
-          <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>Multi-process welder</p>
-        </div>
-      )}
 
       {/* Collapse toggle */}
       <button
         onClick={onToggle}
-        className="mx-3 mb-4 flex items-center justify-center h-8 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5 transition-all"
+        className="mx-3 mb-4 flex items-center justify-center h-8 rounded-lg transition-all hover:bg-white/5"
+        style={{ color: "var(--text-secondary)", border: "1px solid transparent" }}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"

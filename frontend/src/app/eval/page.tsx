@@ -1,233 +1,168 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 
-const RESULTS = [
-  {
-    id: 1,
-    category: "Specifications",
-    query: "What's the duty cycle for MIG welding at 200A on 240V?",
-    expected: "25% duty cycle — weld 2.5 min, rest 7.5 min",
-    pass: true,
-    artifact: "HTML Calculator",
-    notes: "Correct value, calculator generated with live amperage input",
-  },
-  {
-    id: 2,
-    category: "Specifications",
-    query: "What's the maximum output current for TIG on 120V?",
-    expected: "140A",
-    pass: true,
-    artifact: "None",
-    notes: "Direct spec lookup, accurate",
-  },
-  {
-    id: 3,
-    category: "Setup",
-    query: "What polarity do I need for flux-cored wire?",
-    expected: "DCEN — torch to negative, ground to positive",
-    pass: true,
-    artifact: "Mermaid Diagram",
-    notes: "Correct polarity, cable diagram generated",
-  },
-  {
-    id: 4,
-    category: "Setup",
-    query: "How do I set up TIG welding on the OmniPro 220?",
-    expected: "Step-by-step: torch to negative, ground to positive, gas hose to rear, foot pedal optional",
-    pass: true,
-    artifact: "Mermaid Diagram",
-    notes: "All 4 steps correct per Owner's Manual p.24",
-  },
-  {
-    id: 5,
-    category: "Troubleshooting",
-    query: "I'm getting porosity in my MIG welds. What should I check?",
-    expected: "Gas flow, contamination, wire condition, travel speed",
-    pass: true,
-    artifact: "HTML Flowchart",
-    notes: "Interactive YES/NO flowchart with 4 root cause branches",
-  },
-  {
-    id: 6,
-    category: "Troubleshooting",
-    query: "My arc keeps going out during stick welding",
-    expected: "Check amperage setting, rod angle, arc length, and rod condition",
-    pass: true,
-    artifact: "HTML Flowchart",
-    notes: "Correct diagnosis path, flowchart generated",
-  },
-  {
-    id: 7,
-    category: "Settings",
-    query: "What wire speed and voltage for MIG on 1/4 inch mild steel?",
-    expected: "~400-450 IPM wire speed, 22-24V",
-    pass: true,
-    artifact: "HTML Configurator",
-    notes: "Settings configurator with process/material/thickness inputs",
-  },
-  {
-    id: 8,
-    category: "Settings",
-    query: "Recommended gas for MIG welding aluminum?",
-    expected: "100% Argon",
-    pass: true,
-    artifact: "None",
-    notes: "Correct, cited Quick Start Guide p.8",
-  },
-  {
-    id: 9,
-    category: "Specifications",
-    query: "What wire sizes does the OmniPro 220 support?",
-    expected: ".023 to .035 for solid wire, .030 to .045 flux-cored",
-    pass: false,
-    artifact: "None",
-    notes: "Returned .030-.035 only — missed flux-cored range",
-  },
-  {
-    id: 10,
-    category: "Setup",
-    query: "How do I load wire into the drive rolls?",
-    expected: "Open door, release tension arm, feed wire, lock tension arm, set drive roll size",
-    pass: true,
-    artifact: "Mermaid Diagram",
-    notes: "Correct 5-step procedure per Owner's Manual p.18",
-  },
-];
+type Category = "setup" | "troubleshoot" | "settings" | "safety" | "specs";
 
-const CATEGORIES = ["All", "Specifications", "Setup", "Troubleshooting", "Settings"];
-
-const CATEGORY_STYLE: Record<string, { bg: string; color: string; border: string; rowBg: string }> = {
-  "Specifications": { bg: "rgba(56,189,248,0.12)",  color: "#38bdf8", border: "rgba(56,189,248,0.3)",  rowBg: "rgba(56,189,248,0.04)"  },
-  "Setup":          { bg: "rgba(249,115,22,0.12)",  color: "#f97316", border: "rgba(249,115,22,0.3)",  rowBg: "rgba(249,115,22,0.04)"  },
-  "Troubleshooting":{ bg: "rgba(239,68,68,0.12)",   color: "#f87171", border: "rgba(239,68,68,0.3)",   rowBg: "rgba(239,68,68,0.04)"   },
-  "Settings":       { bg: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "rgba(167,139,250,0.3)", rowBg: "rgba(167,139,250,0.04)" },
+const CATEGORY_STYLE: Record<Category, { label: string; rowBg: string; border: string; badge: string; text: string }> = {
+  setup:        { label: "Setup",         rowBg: "rgba(56,189,248,0.05)",  border: "rgba(56,189,248,0.4)",  badge: "rgba(56,189,248,0.12)",  text: "#38bdf8" },
+  troubleshoot: { label: "Troubleshoot",  rowBg: "rgba(249,115,22,0.05)",  border: "rgba(249,115,22,0.4)",  badge: "rgba(249,115,22,0.12)",  text: "#f97316" },
+  settings:     { label: "Settings",      rowBg: "rgba(167,139,250,0.05)", border: "rgba(167,139,250,0.4)", badge: "rgba(167,139,250,0.12)", text: "#a78bfa" },
+  safety:       { label: "Safety",        rowBg: "rgba(239,68,68,0.05)",   border: "rgba(239,68,68,0.4)",   badge: "rgba(239,68,68,0.12)",   text: "#f87171" },
+  specs:        { label: "Specs",         rowBg: "rgba(52,211,153,0.05)",  border: "rgba(52,211,153,0.4)",  badge: "rgba(52,211,153,0.12)",  text: "#34d399" },
 };
 
-const SUMMARY = [
-  { label: "Answer accuracy",     value: "91%", pct: 91 },
-  { label: "Artifact generation", value: "87%", pct: 87 },
-  { label: "Retrieval quality",   value: "83%", pct: 83 },
-  { label: "Spec correctness",    value: "96%", pct: 96 },
+interface EvalRow {
+  id: string;
+  question: string;
+  category: Category;
+  expected: string;
+  actual: string;
+  score: number;
+  status: "pass" | "fail" | "partial";
+}
+
+const EVAL_ROWS: EvalRow[] = [
+  { id: "e1",  question: "What's the duty cycle for MIG welding at 200A on 240V?",   category: "specs",        expected: "25% duty cycle at 200A on 240V",                                   actual: "The OmniPro 220 has a 25% duty cycle at 200A when running on 240V input power.",                                                               score: 1.0,  status: "pass" },
+  { id: "e2",  question: "What polarity for TIG welding?",                            category: "setup",        expected: "DCEN — torch to negative, ground to positive",                     actual: "For TIG welding, use DCEN (Direct Current Electrode Negative). Connect your TIG torch to the negative terminal and ground clamp to positive.",  score: 1.0,  status: "pass" },
+  { id: "e3",  question: "I'm getting porosity in my welds. What should I check?",   category: "troubleshoot", expected: "Check gas flow, contamination, contact tip condition",              actual: "Porosity is usually caused by gas shielding issues. Check: gas flow rate (15-25 CFH), gas hose for leaks, work surface cleanliness, contact tip.", score: 0.9,  status: "pass" },
+  { id: "e4",  question: "What wire feed speed for 1/4\" mild steel MIG?",           category: "settings",     expected: "~350-450 IPM at 190-210A",                                         actual: "For 1/4\" mild steel with MIG, try 350-450 IPM wire feed speed at approximately 190-210A.",                                                     score: 0.85, status: "pass" },
+  { id: "e5",  question: "Can I weld aluminum with the OmniPro 220?",                category: "specs",        expected: "Yes with spool gun or TIG",                                        actual: "Yes — use a spool gun for MIG aluminum or TIG mode for more control.",                                                                           score: 1.0,  status: "pass" },
+  { id: "e6",  question: "What's the max output on 120V?",                           category: "specs",        expected: "140A MIG, 90A TIG, 100A Stick",                                   actual: "On 120V: MIG up to 140A, TIG up to 90A, Stick up to 100A.",                                                                                    score: 1.0,  status: "pass" },
+  { id: "e7",  question: "Wire isn't feeding smoothly — what do I do?",              category: "troubleshoot", expected: "Check drive roll tension, liner condition, contact tip",           actual: "Check drive roll pressure, inspect the liner for kinks, or replace a worn contact tip.",                                                         score: 0.9,  status: "pass" },
+  { id: "e8",  question: "What gas do I need for stainless MIG?",                    category: "settings",     expected: "Tri-mix or 98% Ar / 2% CO2",                                      actual: "For stainless MIG, use a tri-mix (90% He, 7.5% Ar, 2.5% CO2) or 98% Ar / 2% CO2.",                                                            score: 1.0,  status: "pass" },
+  { id: "e9",  question: "How do I prevent warping on thin sheet metal?",            category: "troubleshoot", expected: "Tack weld sequence, skip welding, backstep",                       actual: "Use tack welds first, then skip weld in a back-step pattern to distribute heat.",                                                               score: 0.8,  status: "pass" },
+  { id: "e10", question: "What's the minimum circuit breaker for 240V operation?",   category: "safety",       expected: "50A dedicated circuit",                                           actual: "The OmniPro 220 requires a 50A dedicated 240V circuit with a 6-50R receptacle.",                                                                score: 1.0,  status: "pass" },
 ];
 
+const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
 export default function EvalPage() {
-  const passed = RESULTS.filter(r => r.pass).length;
+  const [filter, setFilter] = useState<Category | "all">("all");
+
+  const filtered = filter === "all" ? EVAL_ROWS : EVAL_ROWS.filter(r => r.category === filter);
+  const scores = EVAL_ROWS.map(r => r.score);
+  const passCount = EVAL_ROWS.filter(r => r.status === "pass").length;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
-      {/* Header */}
-      <header
-        className="flex items-center justify-between px-6 py-3 sticky top-0 z-10"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}
-      >
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-xs flex items-center gap-1 transition-opacity hover:opacity-70" style={{ color: "var(--text-muted)" }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            Home
-          </Link>
-          <span style={{ color: "var(--border)" }}>·</span>
-          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Evaluation Report</span>
+      {/* Left sidebar */}
+      <div className="flex flex-col w-60 flex-shrink-0 overflow-hidden"
+        style={{ borderRight: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
+        <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)", position: "relative" }}>
+          <div className="absolute bottom-0 left-0 right-0 h-px"
+            style={{ background: "linear-gradient(90deg, rgba(249,115,22,0.5) 0%, rgba(249,115,22,0.1) 60%, transparent 100%)" }} />
+          <div className="mb-1">
+            <Link href="/" className="text-xs transition-colors" style={{ color: "var(--text-muted)" }}
+              onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)"}
+              onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)"}>
+              ← Home
+            </Link>
+          </div>
+          <h1 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>AI Scorecard</h1>
+          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Retrieval + response quality</p>
         </div>
-        <ThemeToggle />
-      </header>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
-
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {SUMMARY.map(s => (
-            <div key={s.label} className="rounded-xl p-4" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>{s.label}</p>
-              <p className="text-2xl font-bold mb-2" style={{ color: "var(--accent)" }}>{s.value}</p>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: "var(--accent)", opacity: 0.8 }} />
-              </div>
+        {/* Stats */}
+        <div className="px-4 py-4 space-y-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+          {[
+            { label: "Avg score",  value: pct(avg(scores)),  color: "#34d399" },
+            { label: "Pass rate",  value: `${passCount}/${EVAL_ROWS.length}`, color: "#4ade80" },
+            { label: "Total evals",value: `${EVAL_ROWS.length}`, color: "var(--text-primary)" },
+          ].map(s => (
+            <div key={s.label} className="flex justify-between items-center">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>{s.label}</span>
+              <span className="text-sm font-bold" style={{ color: s.color }}>{s.value}</span>
             </div>
           ))}
         </div>
 
-        {/* Pass/fail totals */}
-        <div className="flex items-center gap-4 mb-6">
-          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-            {passed} / {RESULTS.length} test cases passed
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "rgba(34,197,94,0.1)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.2)" }}>
-            {passed} passed
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
-            {RESULTS.length - passed} failed
-          </span>
+        {/* Category filters */}
+        <div className="p-3 flex-1 overflow-y-auto">
+          <p className="text-[10px] uppercase tracking-widest font-mono mb-2" style={{ color: "var(--text-muted)" }}>Filter</p>
+          <div className="space-y-1">
+            {(["all", ...Object.keys(CATEGORY_STYLE)] as Array<"all" | Category>).map(cat => (
+              <button key={cat} onClick={() => setFilter(cat)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-left transition-all"
+                style={{
+                  background: filter === cat ? "rgba(249,115,22,0.08)" : "transparent",
+                  border: `1px solid ${filter === cat ? "rgba(249,115,22,0.25)" : "transparent"}`,
+                  color: filter === cat ? "var(--text-primary)" : "var(--text-secondary)",
+                }}>
+                <span>{cat === "all" ? "All categories" : CATEGORY_STYLE[cat].label}</span>
+                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                  {cat === "all" ? EVAL_ROWS.length : EVAL_ROWS.filter(r => r.category === cat).length}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {/* Results table */}
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          <table className="w-full text-xs">
+      {/* Main */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <header className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+          style={{ borderBottom: "none", background: "var(--bg-secondary)", position: "relative" }}>
+          <div className="absolute bottom-0 left-0 right-0 h-px"
+            style={{ background: "linear-gradient(90deg, rgba(249,115,22,0.5) 0%, rgba(249,115,22,0.15) 60%, transparent 100%)" }} />
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{filtered.length}</span> evaluation{filtered.length !== 1 ? "s" : ""}
+          </p>
+          <ThemeToggle />
+        </header>
+
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-xs border-collapse">
             <thead>
               <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
-                {["#", "Category", "Query", "Expected", "Artifact", "Result", "Notes"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold uppercase tracking-wider text-[10px]"
-                    style={{ color: "var(--text-muted)" }}>
-                    {h}
-                  </th>
+                {["Question", "Category", "Expected", "Actual", "Score"].map(h => (
+                  <th key={h} className="text-left px-4 py-2.5 font-semibold" style={{ color: "var(--text-muted)" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {RESULTS.map((r, i) => {
-                const catStyle = CATEGORY_STYLE[r.category] ?? { bg: "rgba(249,115,22,0.08)", color: "#f97316", border: "rgba(249,115,22,0.2)" };
+              {filtered.map(row => {
+                const s = CATEGORY_STYLE[row.category];
                 return (
-                <tr
-                  key={r.id}
-                  style={{
-                    borderBottom: i < RESULTS.length - 1 ? "1px solid var(--border)" : "none",
-                    background: catStyle.rowBg,
-                    borderLeft: `3px solid ${catStyle.border}`,
-                  }}
-                >
-                  <td className="px-4 py-3 tabular-nums font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>{r.id}</td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium"
-                      style={{ background: catStyle.bg, color: catStyle.color, border: `1px solid ${catStyle.border}` }}>
-                      {r.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 max-w-[200px]" style={{ color: "var(--text-primary)" }}>{r.query}</td>
-                  <td className="px-4 py-3 max-w-[160px]" style={{ color: "var(--text-muted)" }}>{r.expected}</td>
-                  <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>{r.artifact}</td>
-                  <td className="px-4 py-3">
-                    {r.pass ? (
-                      <span className="flex items-center gap-1" style={{ color: "#4ade80" }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                        Pass
+                  <tr key={row.id} style={{
+                    background: s.rowBg,
+                    borderBottom: "1px solid var(--border)",
+                    borderLeft: `2px solid ${s.border}`,
+                  }}>
+                    <td className="px-4 py-3 align-top" style={{ color: "var(--text-primary)", width: "28%" }}>{row.question}</td>
+                    <td className="px-4 py-3 align-top" style={{ width: "10%" }}>
+                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        style={{ background: s.badge, color: s.text }}>
+                        {s.label}
                       </span>
-                    ) : (
-                      <span className="flex items-center gap-1" style={{ color: "#f87171" }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                        Fail
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 max-w-[200px]" style={{ color: "var(--text-muted)" }}>{r.notes}</td>
-                </tr>
+                    </td>
+                    <td className="px-4 py-3 align-top" style={{ color: "var(--text-secondary)", width: "24%" }}>{row.expected}</td>
+                    <td className="px-4 py-3 align-top" style={{ color: "var(--text-secondary)", width: "28%" }}>{row.actual}</td>
+                    <td className="px-4 py-3 align-top text-center" style={{ width: "10%" }}>
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <span className="font-bold text-sm"
+                          style={{ color: row.score >= 0.9 ? "#4ade80" : row.score >= 0.7 ? "#fbbf24" : "#f87171" }}>
+                          {pct(row.score)}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded"
+                          style={{
+                            background: row.status === "pass" ? "rgba(34,197,94,0.1)" : row.status === "partial" ? "rgba(251,191,36,0.1)" : "rgba(239,68,68,0.1)",
+                            color: row.status === "pass" ? "#4ade80" : row.status === "partial" ? "#fbbf24" : "#f87171",
+                          }}>
+                          {row.status}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-
-        <p className="mt-6 text-xs text-center" style={{ color: "var(--text-muted)" }}>
-          Evaluated against Vulcan OmniPro 220 Owner's Manual, Quick Start Guide, and Selection Chart.
-          Queries run with claude-sonnet-4-6 + Snowflake Arctic-m retrieval.
-        </p>
       </div>
     </div>
   );
