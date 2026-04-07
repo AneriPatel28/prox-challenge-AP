@@ -1,0 +1,207 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ── */
+@layer base {
+  :root {
+    --bg-primary:    #f5f4f1;
+    --bg-secondary:  #ffffff;
+    --bg-card:       #fafaf8;
+    --sidebar-bg:    #111113;
+    --accent:        #ea580c;
+    --accent-glow:   rgba(234, 88, 12, 0.25);
+    --text-primary:  #111827;
+    --text-secondary:#6b7280;
+    --text-muted:    #9ca3af;
+    --border:        #e5e7eb;
+    --border-subtle: #f3f4f6;
+    --user-bubble:   #fff7ed;
+    --user-border:   #fed7aa;
+  }
+
+  .dark {
+    --bg-primary:    #0a0a0b;
+    --bg-secondary:  #111113;
+    --bg-card:       #18181b;
+    --sidebar-bg:    #0a0a0b;
+    --accent:        #f97316;
+    --accent-glow:   rgba(249, 115, 22, 0.2);
+    --text-primary:  #f9fafb;
+    --text-secondary:#9ca3af;
+    --text-muted:    #6b7280;
+    --border:        #27272a;
+    --border-subtle: #1e1e22;
+    --user-bubble:   #1c1009;
+    --user-border:   #7c2d12;
+  }
+
+  * {
+    @apply border-[var(--border)];
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+}
+
+/* ── Utility classes ── */
+@layer components {
+  .surface {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .surface-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+
+  .text-primary   { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-muted-fg  { color: var(--text-muted); }
+
+  .accent-text    { color: var(--accent); }
+  .accent-border  { border-color: var(--accent); }
+
+  .glow-accent {
+    box-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+  }
+
+  .glow-accent-sm {
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  /* Prose inside chat messages */
+  .chat-prose {
+    @apply text-sm leading-relaxed;
+    color: var(--text-primary);
+  }
+
+  .chat-prose p { @apply mb-3 last:mb-0; }
+  .chat-prose ul { @apply list-disc pl-5 mb-3 space-y-1; }
+  .chat-prose ol { @apply list-decimal pl-5 mb-3 space-y-1; }
+  .chat-prose li { @apply text-sm; }
+
+  .chat-prose h1,
+  .chat-prose h2,
+  .chat-prose h3 {
+    @apply font-semibold mb-2 mt-4 first:mt-0;
+    color: var(--text-primary);
+  }
+  .chat-prose h2 { @apply text-base; }
+  .chat-prose h3 { @apply text-sm; }
+
+  .chat-prose code {
+    @apply font-mono text-xs px-1.5 py-0.5 rounded;
+    background: var(--border-subtle);
+    color: var(--accent);
+  }
+
+  .chat-prose pre {
+    @apply font-mono text-xs p-3 rounded-lg overflow-x-auto mb-3;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+
+  .chat-prose pre code {
+    @apply bg-transparent p-0 text-inherit;
+    color: var(--text-primary);
+  }
+
+  .chat-prose strong { @apply font-semibold; color: var(--text-primary); }
+
+  .chat-prose table {
+    @apply w-full text-xs border-collapse mb-3;
+  }
+  .chat-prose th {
+    @apply text-left font-semibold p-2 border-b;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+  }
+  .chat-prose td {
+    @apply p-2 border-b;
+    border-color: var(--border-subtle);
+  }
+  .chat-prose tr:last-child td { @apply border-b-0; }
+}
+
+/* ── Arc glow button ── */
+.btn-arc {
+  background-color: var(--accent);
+  color: white;
+  transition: all 0.15s ease;
+}
+.btn-arc:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.btn-arc:active { transform: scale(0.97); }
+
+/* ── Thinking indicator dots ── */
+.dot-1 { animation: dot-bounce 1.2s ease-in-out 0s infinite; }
+.dot-2 { animation: dot-bounce 1.2s ease-in-out 0.2s infinite; }
+.dot-3 { animation: dot-bounce 1.2s ease-in-out 0.4s infinite; }
+
+/* ── Mermaid override ── */
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Artifact panel entrance ── */
+.artifact-enter {
+  animation: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Marquee ticker ── */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marquee-reverse {
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.marquee-track {
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+.marquee-track-reverse {
+  animation: marquee-reverse 32s linear infinite;
+  will-change: transform;
+}
+.marquee-track:hover,
+.marquee-track-reverse:hover {
+  animation-play-state: paused;
+}
+
+/* ── Ken Burns banner ── */
+@keyframes ken-burns {
+  0%   { transform: scale(1.04) translate(0%, 0%); }
+  35%  { transform: scale(1.10) translate(-1.2%, -0.6%); }
+  65%  { transform: scale(1.08) translate(0.8%, 0.4%); }
+  100% { transform: scale(1.04) translate(0%, 0%); }
+}
+
+.ken-burns-img {
+  animation: ken-burns 12s ease-in-out infinite;
+  will-change: transform;
+}

@@ -44,8 +44,9 @@ CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 EMBED_MODEL     = "Snowflake/snowflake-arctic-embed-m"
 QUERY_PREFIX    = "Represent this sentence for searching relevant passages: "
 COLLECTION_NAME = "manual_pages"
-MAX_TOKENS      = 450    # safe under Arctic-m's 512 token limit
-MIN_CHUNK_CHARS = 50     # skip tiny meaningless fragments
+MAX_TOKENS       = 400   # lowered to leave room for overlap without exceeding Arctic-m's 512 limit
+MIN_CHUNK_TOKENS = 15    # skip truly empty fragments only
+OVERLAP_TOKENS   = 50    # ~50 token overlap between splits for context continuity
 
 
 # ─── LangChain splitters ──────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ md_splitter = MarkdownHeaderTextSplitter(
 
 # Step 2: recursively split oversized sections
 char_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=MAX_TOKENS * 4,   # chars (1 token ≈ 4 chars)
-    chunk_overlap=0,
+    chunk_size=MAX_TOKENS * 4,     # chars (1 token ≈ 4 chars) → 1600 chars ≈ 400 tokens
+    chunk_overlap=OVERLAP_TOKENS * 4,  # 200 chars ≈ 50 tokens overlap
     separators=["\n\n", "\n", ". ", " "],
 )
 
@@ -90,8 +91,9 @@ def smart_chunk(page: dict) -> list[dict]:
     idx        = 0
 
     for chunk in raw_chunks:
-        if len(chunk) < MIN_CHUNK_CHARS:
+        if token_count(chunk) < MIN_CHUNK_TOKENS:
             continue
+
 
         # Extract section name from first heading line
         first_line   = chunk.split("\n")[0].strip()
