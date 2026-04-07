@@ -233,6 +233,38 @@ async def feedback(req: FeedbackRequest):
     return {"ok": True}
 
 
+class SiteFeedbackRequest(BaseModel):
+    name:    str
+    email:   str
+    message: str
+    rating:  int   # 1-5
+
+
+USER_FEEDBACK_FILE = ROOT / "data" / "user_feedback.jsonl"
+
+
+@app.post("/api/user-feedback")
+async def site_feedback(req: SiteFeedbackRequest):
+    """Store user-submitted site feedback (name, email, message, star rating)."""
+    if not 1 <= req.rating <= 5:
+        raise HTTPException(status_code=400, detail="rating must be 1-5")
+
+    import datetime
+    entry = {
+        "ts":      datetime.datetime.utcnow().isoformat(),
+        "name":    req.name[:100],
+        "email":   req.email[:200],
+        "message": req.message[:2000],
+        "rating":  req.rating,
+    }
+    USER_FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(USER_FEEDBACK_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    log.info("Site feedback | %s (%s) | rating: %d", req.name, req.email, req.rating)
+    return {"ok": True}
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     """
