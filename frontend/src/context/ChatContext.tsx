@@ -63,7 +63,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           message:    userText,
           session_id: sessionIdRef.current,
-          history:    history.slice(-10),
+          history:    history.slice(-4),
         }),
       });
 

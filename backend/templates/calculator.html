@@ -1,0 +1,236 @@
+<!-- DESIGN SYSTEM — this template locks the visual language only. Everything else is your judgment.
+
+  LOCKED (always follow):
+  - Chamfered corners: clip-path polygon(8px 0, ...) on all cards and chips
+  - CSS variables only: --bg, --bg-card, --bg-input, --text, --text-muted, --border, --accent, --accent-bg
+  - Result cards with animated top accent bar (.result-card + ::before)
+  - Tip box with orange left accent for contextual advice
+  - Flash animation on value change
+  - No external fonts, CDN links, or hardcoded colors
+  - Visual consistency: if you render a chart with a legend, define each color as a variable (e.g. const colorA = '#f97316', const colorB = 'var(--border)') and use that same variable in BOTH the chart drawing code and the legend dot. Never hardcode a color in one place and a different color in another.
+
+  FREE (use your judgment):
+  - What inputs to show — infer from the question. If the user didn't specify a variable, let them pick it. If they did, pre-select it and hide that input entirely.
+  - What type of input — chips for finite options, chip-input for "other/custom", range/number input for continuous values, nothing if the question has only one answer
+  - What outputs to show — whatever the question needs. Not limited to voltage/amps/wire speed. Could be rest time, gas flow, electrode size, stick-out distance, anything.
+  - How many inputs/outputs — match the complexity of the question
+  - Initial state — always pre-select sensible defaults so results show immediately on load
+  - DATA values — always from retrieved manual chunks, never invent numbers
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg,#fff);color:var(--text,#111827);font-family:Inter,system-ui,sans-serif;font-size:14px;padding:18px;-webkit-font-smoothing:antialiased}
+  .section{margin-bottom:16px}
+  .section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted,#9ca3af);margin-bottom:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{padding:7px 13px;font-size:12px;font-weight:500;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);background:var(--bg-card,#f9f9f7);border:1px solid var(--border,#e5e7eb);color:var(--text-muted,#9ca3af);cursor:pointer;transition:all .15s;user-select:none}
+  .chip:hover{color:var(--text,#111827);border-color:rgba(249,115,22,.35)}
+  .chip-process{display:flex;flex-direction:column;align-items:flex-start;padding:9px 14px;gap:1px;flex:1;min-width:70px}
+  .chip-process .name{font-size:13px;font-weight:700;line-height:1}
+  .chip-process .full{font-size:9px;font-weight:400;opacity:.6;text-transform:uppercase;letter-spacing:.04em}
+  .chip.active-orange{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.4);color:#f97316}
+  .chip.active-blue{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:#38bdf8}
+  .chip.active-purple{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.4);color:#a78bfa}
+  .chip.active-green{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4);color:#34d399}
+  .chip.active-gray{background:var(--accent-bg,rgba(249,115,22,.08));border-color:rgba(249,115,22,.3);color:var(--text,#111827)}
+  .divider{height:1px;background:var(--border,#e5e7eb);margin:16px 0}
+  .results-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted,#9ca3af);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .results-label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent,#f97316);display:inline-block;animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+  .results-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px}
+  .result-card{clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);background:var(--bg-card,#f9f9f7);border:1px solid var(--border,#e5e7eb);padding:12px;position:relative;overflow:hidden;transition:border-color .3s}
+  .result-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent,#f97316);transform:scaleX(0);transition:transform .3s ease;transform-origin:left}
+  .result-card.has-value{border-color:rgba(249,115,22,.25)}
+  .result-card.has-value::before{transform:scaleX(1)}
+  .r-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted,#9ca3af);margin-bottom:6px}
+  .r-val{font-size:18px;font-weight:700;color:var(--accent,#f97316);line-height:1.1;transition:all .2s}
+  .r-unit{font-size:10px;color:var(--text-muted,#9ca3af);margin-top:2px}
+  .result-card.wide{grid-column:span 2}
+  .result-card.wide .r-val{font-size:13px;font-weight:500;color:var(--text,#111827)}
+  .result-card.full{grid-column:span 3}
+  .result-card.full .r-val{font-size:12px;font-weight:400;color:var(--text,#111827)}
+  .tip{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);background:var(--accent-bg,rgba(249,115,22,.07));border:1px solid rgba(249,115,22,.2);padding:10px 12px;font-size:11px;color:var(--text-muted,#9ca3af);line-height:1.6;margin-top:6px}
+  .tip.hidden{display:none}
+  .tip-label{font-weight:600;color:var(--accent,#f97316);margin-right:4px}
+  .na{color:var(--text-muted,#9ca3af);font-size:14px;font-weight:400}
+  @keyframes flash{0%{opacity:0;transform:translateY(4px)}100%{opacity:1;transform:translateY(0)}}
+  .flash{animation:flash .2s ease forwards}
+  .chip-input{padding:0;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);background:var(--bg-card,#f9f9f7);border:1px solid var(--border,#e5e7eb);transition:border-color .15s}
+  .chip-input input{background:transparent;border:none;outline:none;color:var(--text,#111827);font-size:12px;font-family:inherit;padding:7px 13px;width:80px;cursor:text}
+  .chip-input input::placeholder{color:var(--text-muted,#9ca3af)}
+  .chip-input:focus-within{border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.05)}
+</style>
+</head>
+<body>
+
+<div class="section">
+  <div class="section-label">Process</div>
+  <div class="chips" id="process-chips">
+    <div class="chip chip-process active-orange" data-val="mig" onclick="sel('process','mig',this,'orange')">
+      <span class="name">MIG</span><span class="full">Gas Metal Arc</span>
+    </div>
+    <div class="chip chip-process" data-val="tig" onclick="sel('process','tig',this,'blue')">
+      <span class="name">TIG</span><span class="full">Gas Tungsten Arc</span>
+    </div>
+    <div class="chip chip-process" data-val="stick" onclick="sel('process','stick',this,'purple')">
+      <span class="name">STICK</span><span class="full">Shielded Metal Arc</span>
+    </div>
+    <div class="chip chip-process" data-val="fcaw" onclick="sel('process','fcaw',this,'green')">
+      <span class="name">FCAW</span><span class="full">Flux-Cored</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Material</div>
+  <div class="chips" id="material-chips">
+    <div class="chip active-gray" data-val="mild"      onclick="sel('material','mild',this,'gray')">Mild Steel</div>
+    <div class="chip"             data-val="stainless" onclick="sel('material','stainless',this,'gray')">Stainless</div>
+    <div class="chip"             data-val="aluminum"  onclick="sel('material','aluminum',this,'gray')">Aluminum</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Thickness</div>
+  <div class="chips" id="thickness-chips">
+    <div class="chip" data-val="18g" onclick="sel('thickness','18g',this,'gray')">18 ga</div>
+    <div class="chip" data-val="16g" onclick="sel('thickness','16g',this,'gray')">16 ga</div>
+    <div class="chip" data-val="14g" onclick="sel('thickness','14g',this,'gray')">14 ga</div>
+    <div class="chip" data-val="18"  onclick="sel('thickness','18',this,'gray')">3/16″</div>
+    <div class="chip active-gray" data-val="14" onclick="sel('thickness','14',this,'gray')">1/4″</div>
+    <div class="chip" data-val="38"  onclick="sel('thickness','38',this,'gray')">3/8″</div>
+    <div class="chip-input"><input id="custom-thickness" type="text" placeholder="Other…" oninput="selCustom(this.value)" onfocus="clearChips('thickness')" /></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="results-label">Recommended Settings</div>
+<div class="results-grid">
+  <div class="result-card" id="r-volts"><div class="r-label">Voltage</div><div class="r-val">—</div><div class="r-unit">volts</div></div>
+  <div class="result-card" id="r-wfs"><div class="r-label">Wire Speed</div><div class="r-val">—</div><div class="r-unit">IPM</div></div>
+  <div class="result-card" id="r-amps"><div class="r-label">Amperage</div><div class="r-val">—</div><div class="r-unit">amps</div></div>
+  <div class="result-card wide" id="r-gas"><div class="r-label">Gas / Shielding</div><div class="r-val">—</div></div>
+  <div class="result-card" id="r-polarity"><div class="r-label">Polarity</div><div class="r-val" style="font-size:13px">—</div></div>
+  <div class="result-card full" id="r-wire"><div class="r-label">Wire / Electrode</div><div class="r-val">—</div></div>
+</div>
+<div class="tip hidden" id="tip-box"><span class="tip-label">Tip</span><span id="tip-text"></span></div>
+
+<script>
+// Claude: replace DATA with values retrieved from the manual chunks
+const DATA = {
+  mig:{
+    mild:{
+      '18g':{volts:'16–17',wfs:'200–250',amps:'30–50',gas:'75/25 Ar/CO₂ · 15 CFH',wire:'0.023" ER70S-6',polarity:'DCEP (+)',tip:'Thin material — use short-circuit transfer. Keep arc length tight.'},
+      '16g':{volts:'17–18',wfs:'250–300',amps:'50–80',gas:'75/25 Ar/CO₂ · 15 CFH',wire:'0.023" ER70S-6',polarity:'DCEP (+)',tip:''},
+      '14g':{volts:'18–19',wfs:'300–350',amps:'80–120',gas:'75/25 Ar/CO₂ · 20 CFH',wire:'0.030" ER70S-6',polarity:'DCEP (+)',tip:''},
+      '18':{volts:'19–20',wfs:'350–420',amps:'130–160',gas:'75/25 Ar/CO₂ · 20 CFH',wire:'0.030" ER70S-6',polarity:'DCEP (+)',tip:'Consider a preheat pass on cold days to prevent cracking.'},
+      '14':{volts:'20–21',wfs:'400–480',amps:'160–200',gas:'75/25 Ar/CO₂ · 25 CFH',wire:'0.035" ER70S-6',polarity:'DCEP (+)',tip:'Sweet spot on 240V. Duty cycle is 25% at 200A — let it rest between runs.'},
+      '38':{volts:'22–24',wfs:'480–550',amps:'200–220',gas:'75/25 Ar/CO₂ · 25 CFH',wire:'0.035" ER70S-6',polarity:'DCEP (+)',tip:'Multiple passes required. Preheat to 200°F. Near max output — watch duty cycle.'},
+    },
+    stainless:{
+      '14g':{volts:'18–19',wfs:'260–310',amps:'80–110',gas:'Tri-Mix 90/7.5/2.5 · 20 CFH',wire:'0.030" ER308L',polarity:'DCEP (+)',tip:'Keep heat input low — stainless warps easily.'},
+      '18':{volts:'19–20',wfs:'300–360',amps:'110–140',gas:'Tri-Mix 90/7.5/2.5 · 20 CFH',wire:'0.030" ER308L',polarity:'DCEP (+)',tip:''},
+      '14':{volts:'20–21',wfs:'350–420',amps:'140–170',gas:'Tri-Mix 90/7.5/2.5 · 20 CFH',wire:'0.035" ER308L',polarity:'DCEP (+)',tip:'Keep heat input low — skip-weld on long seams.'},
+    },
+    aluminum:{
+      '14g':{volts:'19–21',wfs:'380–450',amps:'100–140',gas:'100% Argon · 20 CFH',wire:'0.035" ER4043',polarity:'DCEP (+)',tip:'Use a spool gun if available. Clean oxide with a stainless brush first.'},
+      '14':{volts:'21–23',wfs:'450–550',amps:'160–200',gas:'100% Argon · 25 CFH',wire:'0.035" ER4043',polarity:'DCEP (+)',tip:'Push technique only — never drag on aluminum.'},
+    },
+  },
+  fcaw:{
+    mild:{
+      '14g':{volts:'17–19',wfs:'140–180',amps:'90–120',gas:'No gas — self-shielded',wire:'0.035" E71T-11',polarity:'DCEN (−)',tip:'Remove slag after every pass. Good for outdoor/windy conditions.'},
+      '18':{volts:'18–20',wfs:'160–200',amps:'120–160',gas:'No gas — self-shielded',wire:'0.035" E71T-11',polarity:'DCEN (−)',tip:''},
+      '14':{volts:'19–21',wfs:'180–220',amps:'150–180',gas:'No gas — self-shielded',wire:'0.035" E71T-11',polarity:'DCEN (−)',tip:'Drag technique only — push causes porosity with flux-core.'},
+      '38':{volts:'21–23',wfs:'210–250',amps:'180–220',gas:'No gas — self-shielded',wire:'0.035" E71T-11',polarity:'DCEN (−)',tip:'Great for structural outdoor work. Multiple passes on 3/8″.'},
+    },
+  },
+  stick:{
+    mild:{
+      '14g':{volts:'—',wfs:'N/A',amps:'70–100',gas:'No gas required',wire:'3/32" E6013',polarity:'DCEP (+)',tip:'E6013 is forgiving for beginners. Strike the arc on the work piece.'},
+      '18':{volts:'—',wfs:'N/A',amps:'90–130',gas:'No gas required',wire:'3/32" E6013',polarity:'DCEP (+)',tip:'Keep arc length about equal to the electrode diameter.'},
+      '14':{volts:'—',wfs:'N/A',amps:'115–165',gas:'No gas required',wire:'1/8" E6013',polarity:'DCEP (+)',tip:''},
+      '38':{volts:'—',wfs:'N/A',amps:'150–200',gas:'No gas required',wire:'1/8" E6010',polarity:'DCEP (+)',tip:'E6010 for deeper penetration on dirty or rusty steel.'},
+    },
+  },
+  tig:{
+    mild:{
+      '14g':{volts:'10–13',wfs:'Manual rod',amps:'60–90',gas:'100% Argon · 15 CFH',wire:'1/16" ER70S-2',polarity:'DCEN (−)',tip:'Grind tungsten to a point. HF start. Feed filler at 15° to the surface.'},
+      '18':{volts:'12–15',wfs:'Manual rod',amps:'90–120',gas:'100% Argon · 15 CFH',wire:'1/16" ER70S-2',polarity:'DCEN (−)',tip:'TIG is the most precise process — take your time, keep tungsten clean.'},
+      '14':{volts:'13–16',wfs:'Manual rod',amps:'110–140',gas:'100% Argon · 20 CFH',wire:'1/16" ER70S-2',polarity:'DCEN (−)',tip:''},
+    },
+    stainless:{
+      '14g':{volts:'10–13',wfs:'Manual rod',amps:'55–80',gas:'100% Argon · 15 CFH',wire:'1/16" ER308L',polarity:'DCEN (−)',tip:'Back purge with Argon on pipe to prevent sugaring inside.'},
+      '14':{volts:'12–15',wfs:'Manual rod',amps:'90–120',gas:'100% Argon · 18 CFH',wire:'1/16" ER308L',polarity:'DCEN (−)',tip:''},
+    },
+    aluminum:{
+      '14g':{volts:'12–15',wfs:'Manual rod',amps:'80–110',gas:'100% Argon · 20 CFH',wire:'3/32" ER4043',polarity:'AC',tip:'AC required for aluminum — cleans the oxide. Use a balled tungsten tip.'},
+      '14':{volts:'14–17',wfs:'Manual rod',amps:'120–160',gas:'100% Argon · 20 CFH',wire:'3/32" ER4043',polarity:'AC',tip:'AC required. Ball your tungsten before starting.'},
+    },
+  },
+};
+
+const state={process:'mig',material:'mild',thickness:'14',customThickness:''};
+
+function clearChips(group){
+  document.getElementById(group+'-chips').querySelectorAll('.chip').forEach(c=>{c.className=c.className.replace(/active-\w+/g,'').trim()});
+}
+
+function sel(group,val,el,color){
+  state[group]=val;
+  clearChips(group);
+  el.classList.add('active-'+color);
+  // Clear any custom input for this group
+  const ci=document.getElementById('custom-'+group);
+  if(ci)ci.value='';
+  render();
+}
+
+function selCustom(val){
+  clearChips('thickness');
+  state.thickness='custom';
+  state.customThickness=val.trim();
+  if(!val.trim()){render();return;}
+  ['r-volts','r-wfs','r-amps','r-gas','r-polarity','r-wire'].forEach(id=>setVal(id,'—',false));
+  const tip=document.getElementById('tip-box');
+  document.getElementById('tip-text').innerHTML=`<strong>${val}</strong> isn't in the preset table — ask the AI Assistant for exact settings, or use the closest standard thickness as a starting point.`;
+  tip.classList.remove('hidden');
+}
+
+function setVal(id,val,isVal){
+  const card=document.getElementById(id);
+  const v=card.querySelector('.r-val');
+  v.textContent=val;
+  v.classList.remove('flash');
+  void v.offsetWidth;
+  v.classList.add('flash');
+  isVal?card.classList.add('has-value'):card.classList.remove('has-value');
+}
+
+function render(){
+  const row=DATA[state.process]?.[state.material]?.[state.thickness];
+  if(!row){
+    ['r-volts','r-wfs','r-amps','r-gas','r-polarity','r-wire'].forEach(id=>setVal(id,'—',false));
+    document.getElementById('tip-box').classList.add('hidden');
+    return;
+  }
+  setVal('r-volts',row.volts,true);
+  setVal('r-wfs',row.wfs,true);
+  setVal('r-amps',row.amps,true);
+  setVal('r-gas',row.gas,true);
+  setVal('r-polarity',row.polarity,true);
+  setVal('r-wire',row.wire,true);
+  const tip=document.getElementById('tip-box');
+  if(row.tip){document.getElementById('tip-text').textContent=row.tip;tip.classList.remove('hidden');}
+  else tip.classList.add('hidden');
+}
+
+render();
+</script>
+</body>
+</html>

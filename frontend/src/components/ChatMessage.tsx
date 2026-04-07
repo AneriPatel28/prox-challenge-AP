@@ -216,16 +216,9 @@ export default function ChatMessageBubble({ message, onRetry, showNav }: Props) 
 
       {/* Bubble */}
       <div className="flex-1 min-w-0">
-        {/* Text */}
-        <div className="chat-prose">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.text}
-          </ReactMarkdown>
-        </div>
-
-        {/* Inline artifacts */}
+        {/* Inline artifacts — shown above text */}
         {message.artifacts && message.artifacts.length > 0 && (
-          <div className="flex flex-col gap-4 mt-4">
+          <div className="flex flex-col gap-4 mb-4">
             {message.artifacts.map((artifact, i) => (
               <div
                 key={artifact.identifier || i}
@@ -244,7 +237,7 @@ export default function ChatMessageBubble({ message, onRetry, showNav }: Props) 
                     {TYPE_ICON[artifact.type]}
                   </span>
                   <span className="text-xs font-medium" style={{ color: "#f97316" }}>
-                    {artifact.title || "Artifact"}
+                    {artifact.title || (artifact.type === "image/jpeg" ? `Manual p.${artifact.page}` : artifact.type === "application/vnd.ant.mermaid" ? "Diagram" : "Interactive")}
                   </span>
                 </div>
 
@@ -256,6 +249,13 @@ export default function ChatMessageBubble({ message, onRetry, showNav }: Props) 
             ))}
           </div>
         )}
+
+        {/* Text — below artifact */}
+        <div className="chat-prose">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.text}
+          </ReactMarkdown>
+        </div>
 
         {/* Sources */}
         {message.sources && message.sources.length > 0 && (

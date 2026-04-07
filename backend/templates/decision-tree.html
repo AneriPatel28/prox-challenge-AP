@@ -1,0 +1,262 @@
+<!-- DESIGN SYSTEM — locks visual language only. Everything else is your judgment.
+
+  LOCKED (always follow):
+  - Chamfered corners: clip-path polygon(8px 0, ...) on all cards and buttons
+  - CSS variables only: --bg, --bg-card, --bg-input, --text, --text-muted, --border, --accent, --accent-bg
+  - Progress indicator at top showing current step / total steps
+  - YES button: filled accent color. NO / secondary button: outline accent style
+  - Result cards: accent left border + accent-bg background
+  - Back button: subtle, muted — never as prominent as action buttons
+  - Step transition: fade + slide up animation
+  - go(id, step) — only 2 args, NEVER pass a third. Total is auto-calculated from [id^="q"] nodes.
+  - No external fonts, CDN links, or hardcoded colors
+
+  FREE (use your judgment):
+  - How many steps and branches — match the complexity of the problem
+  - What the YES/NO labels say — use plain language that fits the question ("Yes, it does" / "No, never")
+  - Whether a branch needs sub-questions or goes straight to a result
+  - Content comes from retrieved manual chunks — never invent fixes
+
+  RESULT NODES — must be instructional, not just diagnostic:
+  - Tell the user exactly what to do, not just what's wrong
+  - Wrong: "Likely cause: wire speed too low"
+  - Right: "Wire speed is too low — turn WFS up 10%. Keep adjusting until the arc sounds like a smooth steady buzz. Check the contact tip for spatter while you're at it."
+  - Never say "check page X" or "see the manual" — if the retrieved chunk contains the relevant steps or procedure, put them directly in the result node. The user should get the answer right there, not a pointer to go find it themselves.
+  - Always add a "This doesn't match my situation" button that sends them back to re-evaluate or shows a tip to ask the AI for a more specific diagnosis
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg,#0c0c0e);color:var(--text,#f9fafb);font-family:Inter,system-ui,sans-serif;font-size:14px;padding:18px;-webkit-font-smoothing:antialiased}
+
+  /* Progress bar */
+  .progress{margin-bottom:16px}
+  .progress-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .progress-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted,#9ca3af)}
+  .progress-step{font-size:10px;color:var(--text-muted,#9ca3af)}
+  .progress-track{height:3px;background:var(--border,#27272a);clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
+  .progress-fill{height:100%;background:var(--accent,#f97316);transition:width .4s ease}
+
+  /* Step card */
+  .step{display:none;animation:fadeUp .25s ease forwards}
+  .step.active{display:block}
+
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(8px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  .step-card{
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+    background:var(--bg-card,#18181b);
+    border:1px solid var(--border,#27272a);
+    padding:16px;
+    margin-bottom:12px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .step-card::before{
+    content:'';
+    position:absolute;
+    top:0;left:0;right:0;
+    height:2px;
+    background:var(--accent,#f97316);
+  }
+
+  .step-q{
+    font-size:14px;
+    font-weight:500;
+    line-height:1.6;
+    color:var(--text,#f9fafb);
+    margin-bottom:14px;
+  }
+
+  /* Buttons */
+  .btns{display:flex;flex-wrap:wrap;gap:8px}
+
+  .btn{
+    clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+    padding:9px 16px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    border:none;
+    transition:opacity .15s, transform .1s;
+    font-family:inherit;
+  }
+  .btn:hover{opacity:.85;transform:translateY(-1px)}
+  .btn:active{transform:scale(.97)}
+
+  .btn-yes{
+    background:var(--accent,#f97316);
+    color:#fff;
+  }
+
+  .btn-no{
+    background:transparent;
+    color:var(--accent,#f97316);
+    border:1.5px solid var(--accent,#f97316);
+    clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+  }
+
+  /* Result card */
+  .result-card{
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+    background:var(--accent-bg,rgba(249,115,22,.1));
+    border:1px solid rgba(249,115,22,.25);
+    padding:14px 16px;
+    margin-bottom:12px;
+  }
+
+  .result-label{
+    font-size:9px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--accent,#f97316);
+    margin-bottom:8px;
+  }
+
+  .result-text{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--text,#f9fafb);
+  }
+
+  .result-text strong{color:var(--accent,#f97316)}
+
+  /* Back + restart buttons */
+  .nav-btns{display:flex;gap:8px;margin-top:4px}
+
+  .btn-back{
+    background:transparent;
+    color:var(--text-muted,#9ca3af);
+    border:1px solid var(--border,#27272a);
+    clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+    padding:6px 12px;
+    font-size:11px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:color .15s,border-color .15s;
+  }
+  .btn-back:hover{color:var(--text,#f9fafb);border-color:var(--text-muted,#9ca3af)}
+</style>
+</head>
+<body>
+
+<!-- Progress -->
+<div class="progress">
+  <div class="progress-top">
+    <span class="progress-label">Diagnosis</span>
+    <span class="progress-step" id="prog-label">Step 1</span>
+  </div>
+  <div class="progress-track">
+    <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+  </div>
+</div>
+
+<!-- Step 1 -->
+<div class="step active" id="q1">
+  <div class="step-card">
+    <div class="step-q">Does the arc start at all?</div>
+    <div class="btns">
+      <button class="btn btn-yes" onclick="go('q2',2)">Yes — arc starts</button>
+      <button class="btn btn-no"  onclick="go('q3',2)">No arc at all</button>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2 -->
+<div class="step" id="q2">
+  <div class="step-card">
+    <div class="step-q">Does the arc immediately go out after starting?</div>
+    <div class="btns">
+      <button class="btn btn-yes" onclick="go('r1',3)">Yes, dies quickly</button>
+      <button class="btn btn-no"  onclick="go('r2',3)">No, arc holds steady</button>
+    </div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q1',1)">← Back</button>
+  </div>
+</div>
+
+<!-- Step 3 — no arc at all -->
+<div class="step" id="q3">
+  <div class="step-card">
+    <div class="step-q">Is the power switch ON and the correct outlet voltage selected?</div>
+    <div class="btns">
+      <button class="btn btn-yes" onclick="go('r3',3)">Yes, checked both</button>
+      <button class="btn btn-no"  onclick="go('r4',3)">Not sure / No</button>
+    </div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q1',1)">← Back</button>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="step" id="r1">
+  <div class="result-card">
+    <div class="result-label">Likely cause</div>
+    <div class="result-text"><strong>Wire speed too low or contact tip clogged.</strong> Increase WFS by 10% and inspect the contact tip — replace if worn or spattered. Also check drive roll tension isn't too loose. (Owner's Manual, p. 24)</div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q2',2)">← Back</button>
+    <button class="btn-back" onclick="go('q1',1)">Start over</button>
+  </div>
+</div>
+
+<div class="step" id="r2">
+  <div class="result-card">
+    <div class="result-label">Arc is stable</div>
+    <div class="result-text"><strong>The arc itself is fine.</strong> Your issue is likely in post-weld appearance — check gas flow rate (15-25 CFH), work angle, and travel speed. If you're seeing porosity or spatter, ask a more specific question.</div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q2',2)">← Back</button>
+    <button class="btn-back" onclick="go('q1',1)">Start over</button>
+  </div>
+</div>
+
+<div class="step" id="r3">
+  <div class="result-card">
+    <div class="result-label">Check connections</div>
+    <div class="result-text"><strong>Ground clamp connection is the most common cause.</strong> Make sure it's clamped directly to clean bare metal — not paint, rust, or the workbench. Also check output terminals are tight. (Owner's Manual, p. 12)</div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q3',2)">← Back</button>
+    <button class="btn-back" onclick="go('q1',1)">Start over</button>
+  </div>
+</div>
+
+<div class="step" id="r4">
+  <div class="result-card">
+    <div class="result-label">Power setup issue</div>
+    <div class="result-text"><strong>Check power first.</strong> Confirm the switch is ON, the voltage selector matches your outlet (120V vs 240V), and the circuit breaker hasn't tripped. The OmniPro 220 needs a dedicated 20A breaker on 120V or 50A on 240V. (Owner's Manual, p. 8)</div>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-back" onclick="go('q3',2)">← Back</button>
+    <button class="btn-back" onclick="go('q1',1)">Start over</button>
+  </div>
+</div>
+
+<script>
+// Count only question steps (id starts with "q") — results don't count toward total
+const TOTAL_STEPS = document.querySelectorAll('[id^="q"]').length;
+
+function go(id, step){
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('prog-label').textContent = 'Step ' + step + ' of ' + TOTAL_STEPS;
+  document.getElementById('prog-fill').style.width = (step/TOTAL_STEPS*100) + '%';
+}
+
+// Init progress label on load
+document.getElementById('prog-label').textContent = 'Step 1 of ' + TOTAL_STEPS;
+document.getElementById('prog-fill').style.width = (1/TOTAL_STEPS*100) + '%';
+</script>
+</body>
+</html>
