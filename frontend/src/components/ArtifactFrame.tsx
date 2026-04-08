@@ -118,9 +118,9 @@ export default function ArtifactFrame({ artifact }: Props) {
 
     if (figures.length > 0) {
       return (
-        <div className="w-full flex flex-col items-start p-4 gap-4">
+        <div className="w-full flex flex-col items-center p-4 gap-4">
           {artifact.title && (
-            <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs font-semibold self-start" style={{ color: "var(--text-muted)" }}>
               {artifact.title}
             </p>
           )}
@@ -129,8 +129,16 @@ export default function ArtifactFrame({ artifact }: Props) {
               key={i}
               src={src}
               alt={`${artifact.title} — figure ${i + 1}`}
-              className="max-w-full rounded-lg object-contain"
-              style={{ border: "1px solid var(--border)", maxHeight: "500px" }}
+              style={{
+                display: "block",
+                width: "auto",
+                height: "auto",
+                maxWidth: "100%",
+                maxHeight: "420px",
+                objectFit: "contain",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+              }}
             />
           ))}
         </div>
@@ -161,8 +169,16 @@ export default function ArtifactFrame({ artifact }: Props) {
         <img
           src={src}
           alt={artifact.title}
-          className="max-w-full rounded-lg object-contain"
-          style={{ border: "1px solid var(--border)", maxHeight: "600px" }}
+          style={{
+            display: "block",
+            width: "auto",
+            height: "auto",
+            maxWidth: "100%",
+            maxHeight: "560px",
+            objectFit: "contain",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+          }}
         />
         {artifact.title && (
           <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>

@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function ChatApp({ initialQuery }: Props) {
-  const { turns, thinkingSteps, isStreaming, error, sendMessage, clearError } = useChatContext();
+  const { turns, thinkingSteps, isStreaming, error, sendMessage, stopStreaming, clearError } = useChatContext();
   const didSendInitial = useRef(false);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function ChatApp({ initialQuery }: Props) {
       )}
 
       <div className="p-4 pt-0">
-        <ChatInput onSend={sendMessage} disabled={isStreaming} />
+        <ChatInput onSend={sendMessage} onStop={stopStreaming} disabled={isStreaming} />
       </div>
     </div>
   );

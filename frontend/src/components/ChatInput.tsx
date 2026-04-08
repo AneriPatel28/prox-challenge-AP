@@ -4,10 +4,11 @@ import { useState, useRef, useCallback, useEffect } from "react";
 
 interface Props {
   onSend:   (text: string) => void;
+  onStop?:  () => void;
   disabled?: boolean;
 }
 
-export default function ChatInput({ onSend, disabled }: Props) {
+export default function ChatInput({ onSend, onStop, disabled }: Props) {
   const [text, setText]         = useState("");
   const [sparked, setSparked]   = useState(false);
   const [listening, setListening] = useState(false);
@@ -125,35 +126,39 @@ export default function ChatInput({ onSend, disabled }: Props) {
           )}
         </button>
 
-        {/* Send button */}
-        <button
-          onClick={handleSend}
-          disabled={!canSend}
-          className={`
-            relative w-8 h-8 rounded-xl flex items-center justify-center
-            transition-all duration-150 overflow-hidden
-            ${canSend ? "btn-arc" : "opacity-30 cursor-not-allowed"}
-          `}
-          style={canSend ? { background: "var(--accent)" } : { background: "var(--border)" }}
-        >
-          {/* Spark burst */}
-          {sparked && (
-            <span className="absolute inset-0 rounded-xl animate-spark"
-              style={{ background: "#fb923c", opacity: 0.6 }} />
-          )}
-          {disabled ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
-              className="animate-spin opacity-80">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-                stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+        {/* Send / Stop button */}
+        {disabled ? (
+          <button
+            onClick={onStop}
+            title="Stop generating"
+            className="relative w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150"
+            style={{ background: "var(--accent)" }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
             </svg>
-          ) : (
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            className={`
+              relative w-8 h-8 rounded-xl flex items-center justify-center
+              transition-all duration-150 overflow-hidden
+              ${canSend ? "btn-arc" : "opacity-30 cursor-not-allowed"}
+            `}
+            style={canSend ? { background: "var(--accent)" } : { background: "var(--border)" }}
+          >
+            {sparked && (
+              <span className="absolute inset-0 rounded-xl animate-spark"
+                style={{ background: "#fb923c", opacity: 0.6 }} />
+            )}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {/* Hint */}

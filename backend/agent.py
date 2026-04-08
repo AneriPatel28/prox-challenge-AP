@@ -48,6 +48,7 @@ CHROMA_DIR      = ROOT / "data" / "chroma"         # knowledge base (manual_page
 MEM0_CHROMA_DIR = ROOT / "data" / "chroma_memory"  # Mem0 memory (agent_memory)
 IMAGES_DIR      = ROOT / "data" / "images"
 TEMPLATES_DIR   = Path(__file__).parent / "templates"
+PROMPTS_DIR     = Path(__file__).parent / "prompts"
 
 # ─── Load artifact templates (once at startup) ────────────────────────────────
 TEMPLATE_CALCULATOR    = (TEMPLATES_DIR / "calculator.html").read_text()
@@ -430,10 +431,15 @@ TOOLS = [
                 "query": {
                     "type": "string",
                     "description": (
-                        "Precise search query using the most relevant technical terms. "
-                        "Include process name (MIG/TIG/STICK/FCAW) when the question is process-specific. "
-                        "Include component names, symptoms, or spec values when relevant. "
-                        "Avoid vague queries — be as specific as the question allows."
+                        "Before writing this query, rewrite the user's question into technical search terms "
+                        "that will match how the manual is written. "
+                        "Translate natural language into the specific terminology used in welding manuals: "
+                        "process names (MIG/TIG/STICK/FCAW), component names (drive roll, contact tip, liner, regulator), "
+                        "spec terms (DCEN, DCEP, duty cycle, wire feed speed, shielding gas), "
+                        "and symptom terms (porosity, spatter, burn-through, arc instability). "
+                        "Example: 'how do I set polarity for flux core' → 'FCAW flux-cored wire polarity DCEN negative terminal socket'. "
+                        "Example: 'wire keeps jamming' → 'wire feed jam bird nest drive roll tension liner'. "
+                        "Never pass the user's raw question directly — always translate it first."
                     ),
                 },
                 "n_results": {
@@ -487,10 +493,11 @@ SYSTEM_PROMPT = """You are the AI assistant for the Vulcan OmniPro 220 welder. T
 
 ## Step 1 — Search strategy (CRAG — Corrective Retrieval)
 1. Always search before answering — never answer from memory alone
-2. Search as many times as needed — stop when you have enough to answer confidently. Simple questions need 1 search, complex or multi-part questions may need 3-4.
-3. After each search, score relevance internally (1–10):
+2. Before every search, rewrite the user's question into technical manual terms — process names, component names, spec values, symptom terms. Never search with the user's raw conversational phrasing.
+3. Search as many times as needed — stop when you have enough to answer confidently. Simple questions need 1 search, complex or multi-part questions may need 3-4.
+4. After each search, score relevance internally (1–10):
    - Score ≥ 7 → proceed
-   - Score < 7 → reformulate with different terms and search again
+   - Score < 7 → reformulate with different technical terms and search again
 4. If any chunk has content_type "diagram" AND you are NOT generating an HTML calculator or decision tree → call get_page_image for that page.
 5. If the chunk describes something the user needs to see to do it correctly — a physical component, a wiring connection, a schematic, a dial position — AND your text answer alone won't make it clear enough → call get_page_image. Ask yourself: "is there something in this image the user couldn't understand from my words alone?" If yes, call it. If no, skip it.
    Do NOT call get_page_image just because a page was referenced or retrieved. Only call it when seeing the image genuinely helps over text.
@@ -530,11 +537,11 @@ Image — when the manual page itself is the clearest answer:
 
 IMPORTANT — figure selection rules (apply every time you get figure crops):
 1. You receive the actual figure images in the tool result — look at them visually.
-2. Only include a figure in figure_urls if it directly shows something relevant to the user's question.
-   Ask yourself: "does this image help the user do or understand what they asked?" If no → exclude it.
-3. If NONE of the figures are relevant, omit figure_urls entirely — do not show images just because they exist.
-4. If you cannot tell which specific crop is relevant from visual inspection, include all of them.
-5. Never include decorative images, logos, safety icons, or page layout elements.
+2. Ask yourself: "does this image directly show what the user asked about — a component, a wiring diagram, a physical step?" If not clearly yes → exclude it.
+3. If NO figure passes that test, omit figure_urls entirely. Do not include an image just because one exists.
+4. Pick exactly ONE figure — the single most directly relevant one. Never include more than one.
+5. Source priority: prefer owner-manual figures over quick-start-guide or selection-chart figures when both exist and are equally relevant.
+6. Never include decorative images, logos, safety icons, warning symbols, or page layout elements.
 
 Put selected URLs as a comma-separated string:
   figure_urls="/images/owner-manual-p007-fig01.jpg,/images/owner-manual-p007-fig02.jpg"
@@ -591,10 +598,11 @@ Never make a silent assumption — always tell the user what you assumed and why
 Write like a knowledgeable friend in the garage with them — not a manual, not a chatbot. Conversational, direct, human. The person reading this just bought their first welder and is standing in front of it right now.
 - Lead with what matters most, not a preamble
 - Use "you" and "your machine" — make it personal
-- Short sentences. Plain words. No jargon without explaining it.
-- Numbered steps for procedures — bold the action, explain the why in one sentence
-- End with the one thing most people get wrong, or a quick "that's it, you're good"
-- Never sound like a manual entry — if it reads like a spec sheet, rewrite it
+- Sentences should have real substance — not too short (no telegraphic one-word bullets), not too long (no run-on walls of text). Aim for the length of someone explaining something clearly out loud.
+- Plain words. No jargon without a quick explanation of what it means.
+- Numbered steps for procedures — bold the action, then explain in a full sentence why it matters or what to watch out for
+- End with the one thing most people get wrong, described in enough detail that they'll actually avoid it
+- Never sound like a manual entry — if it reads like a spec sheet, rewrite it in plain English
 - When a retrieved chunk references another page by number (e.g. "see page 11", "instructions on page 4"), that page's content has already been fetched and included in the chunks provided to you — look for it and use it directly in your answer.
 - When a retrieved chunk references a named section, procedure, or figure by name (e.g. "see the Drive Roll Setup procedure", "refer to the Troubleshooting section", "as shown in Figure 3"), call search_manual with that name as the query to retrieve it — then use the content directly in your answer.
 - Never tell the user to go look something up themselves. If the content is not in any retrieved chunk and search_manual returns nothing relevant, say "I don't have that detail" — not "check page X" or "refer to the manual".
@@ -602,10 +610,28 @@ Write like a knowledgeable friend in the garage with them — not a manual, not 
 - Page citations like (Owner's Manual, p. 12) are fine as a reference after you've given the actual answer — but never as a substitute for it.
 - If the manual doesn't cover it, say so honestly
 
-## When an artifact is present
-- The artifact handles the numbers, settings, or visual — do NOT restate what it already shows
-- Keep text to 2-3 sentences of context the artifact can't convey: why it matters, what to watch out for, a practical tip
-- Never repeat the specific values shown in the calculator or diagram in your text response""".replace("{TEMPLATE_CALCULATOR}", TEMPLATE_CALCULATOR).replace("{TEMPLATE_DECISION_TREE}", TEMPLATE_DECISION_TREE).replace("{TEMPLATE_MERMAID}", TEMPLATE_MERMAID)
+## What text covers when artifacts are present
+
+Each format has one job. Never let text cross into an artifact's lane.
+
+**When Mermaid is present:**
+- Mermaid owns everything about connections: what plugs where, which socket, which terminal, polarity direction, cable routing
+- Text owns ONLY: the one practical thing people get wrong, or a single safety note
+- NEVER say "here's what the connections look like" or describe any connection in text — the diagram shows it
+
+**When image is present:**
+- Image owns: the physical layout, what the component looks like, the visual reference
+- Text owns: what to do with what you're seeing, a single warning or tip
+- NEVER say "here's what it looks like on the machine" or describe the image content in text
+
+**When both Mermaid and image are present:**
+- Mermaid: the abstract wiring
+- Image: the physical reference
+- Text: ONE sentence — the single most important thing to get right
+
+**Text limit when artifacts are present:** 3–4 sentences max. No more.
+
+**What those sentences should do:** give the user enough context to actually use the artifact — what the diagram or image is showing them and why it matters, what to watch out for when following it, and the one thing people most commonly get wrong. Write as if you're standing next to them pointing at the diagram. Do NOT list out the values or connections already visible in it — explain what to do with them and why.""".replace("{TEMPLATE_CALCULATOR}", TEMPLATE_CALCULATOR).replace("{TEMPLATE_DECISION_TREE}", TEMPLATE_DECISION_TREE).replace("{TEMPLATE_MERMAID}", TEMPLATE_MERMAID)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -914,15 +940,21 @@ def run_agent(
             log.warning("Mem0 save failed (non-fatal): %s", e)
 
     # ── 6. Build result ───────────────────────────────────────────────────────
+    clean_text = strip_artifact_tags(final_text)
     result = {
-        "text":      strip_artifact_tags(final_text),
+        "text":      clean_text,
         "artifacts": artifacts,
         "sources":   all_sources,
     }
 
-    # Emit final answer event for SSE consumers
+    # Stream clean text as character chunks so the frontend can render progressively,
+    # then send the answer event with artifacts + sources to finalize the message.
+    CHUNK = 12
+    for i in range(0, len(clean_text), CHUNK):
+        emit("delta", text=clean_text[i:i + CHUNK])
+
     emit("answer",
-         text      = result["text"],
+         text      = clean_text,
          artifacts = result["artifacts"],
          sources   = result["sources"])
 

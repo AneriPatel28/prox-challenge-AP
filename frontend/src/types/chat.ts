@@ -44,6 +44,7 @@ export interface ConversationTurn {
 // SSE event shapes from backend
 export type SSEEvent =
   | { type: "thinking";  message: string }
+  | { type: "delta";     text: string }
   | { type: "answer";    text: string; artifacts: Artifact[]; sources: Source[] }
   | { type: "error";     message: string }
   | { type: "heartbeat" }

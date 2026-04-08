@@ -1,52 +1,63 @@
-<!-- MERMAID TEMPLATE — locks syntax conventions only. Content is yours.
+<!-- MERMAID TEMPLATE — locks syntax and style conventions. Content is yours.
 
   LOCKED (always follow):
-  - No inline style overrides — no `style`, no `classDef` color rules. The frontend
-    applies theme colors (orange accent, dark/light bg) via CSS variables automatically.
+  - No inline style overrides — no `style`, no `classDef` color rules
+    The frontend applies theme colors (orange accent, dark/light bg) via CSS variables automatically.
     Adding colors here will conflict with the theme.
-  - Node labels: plain text only, no HTML, max ~4 words. Long labels break layout.
-  - Edge labels: concise — 1-4 words max using -->|label| syntax
-  - Max ~10 nodes per diagram. More than that becomes unreadable in the panel.
-  - Always use `graph` not `flowchart` — `flowchart` keyword has rendering issues.
-  - Use `graph LR` for connections/wiring (things that flow left to right)
-  - Use `graph TD` for sequences/steps (things that flow top to bottom)
+  - Always use `graph` not `flowchart` — `flowchart` keyword has rendering issues
+  - Use `graph LR` for wiring/connections (things that flow left to right)
+  - Use `graph TD` for sequences/decisions (things that flow top to bottom)
+  - Node labels: plain text only, no HTML, max ~5 words
+  - Edge labels: 1–4 words max using -->|label| syntax
+  - Max ~12 nodes per diagram. More becomes unreadable.
+  - Quote edge labels that contain spaces or special chars: -->|"+ socket"| not -->|+ socket|
 
-  FREE (your judgment):
-  - Content, node names, edge labels
-  - Number of nodes (up to 10)
-  - Which direction fits the diagram
-  - Whether to use decision diamonds, rectangles, or circles
+  NODE SHAPES — use these consistently, they carry meaning:
+  - [Text]    rectangle    — physical components, terminals, manuals, outputs
+  - ((Text))  circle       — sockets, ports, connection points, endpoints
+  - {Text}    diamond      — decisions, conditions, branch points
+  - (Text)    rounded rect — steps, actions, procedures
+  - >Text]    flag/arrow   — warnings, cautions, important notes
 
-  NODE SHAPES — use these consistently:
-  - [Text]    rectangle    — components, terminals, connectors
-  - ((Text))  circle       — endpoints, sockets, ports
-  - {Text}    diamond      — decisions, conditions
-  - (Text)    rounded rect — actions, steps
-
-  WHEN TO USE MERMAID (not a decision tree, not a calculator):
-  - Physical connections: "which cable goes where", polarity setup, terminal wiring
-  - Setup sequences: ordered steps where seeing the flow matters
-  - Process relationships: how A leads to B leads to C
-  NOT for: troubleshooting (use decision tree), settings/numbers (use calculator)
+  WHEN TO USE MERMAID:
+  - Wiring: which cable plugs into which socket, DCEN/DCEP polarity setup
+  - Process selection: what process/settings to use based on material/thickness
+  - Setup sequences: ordered steps where branching matters
+  - Component relationships: how parts connect physically
+  NOT for: troubleshooting trees with 3+ branches (use HTML decision tree instead)
+  NOT for: tables of numbers (use HTML calculator instead)
 -->
 
-EXAMPLE 1 — Polarity wiring diagram (use graph LR for wiring):
+EXAMPLE 1 — Polarity wiring (DCEN for flux-cored, graph LR):
 
 graph LR
-  GC[Ground Clamp] -->|plugs into| POS((+ Terminal))
-  TT[TIG Torch] -->|plugs into| NEG((- Terminal))
-  POS --- M{OmniPro 220}
+  GC[Ground Clamp] -->|"+ socket"| POS(("⊕ Positive"))
+  TT[Work Cable] -->|"- socket"| NEG(("⊖ Negative"))
+  POS --- M[OmniPro 220]
   NEG --- M
-  M -->|DCEN setup| WP[Workpiece]
+  M -->|DCEN| WP[Workpiece]
+  TH[FCAW Torch] -->|"- socket"| NEG
 
-EXAMPLE 2 — Setup sequence (use graph TD for steps):
+EXAMPLE 2 — Process selection by material (graph TD):
 
 graph TD
-  A[Install Wire Spool] --> B[Thread Wire Through Liner]
-  B --> C[Set Drive Roll Groove]
-  C -->|solid wire| D[V-groove side]
-  C -->|flux-cored| E[Knurled side]
-  D --> F[Set Tension 3-5]
-  E --> G[Set Tension 2-3]
-  F --> H[Test Feed]
-  G --> H
+  A{Material type?} -->|Steel / Iron| B{Thickness?}
+  A -->|Aluminum| C[TIG — DCEP]
+  A -->|Thin sheet| D[MIG 120V]
+  B -->|"< 3/16 inch"| E[MIG 120V or 240V]
+  B -->|"> 3/16 inch"| F[MIG 240V or Stick]
+  E --> G(Set voltage + wire speed)
+  F --> H(Set higher amperage)
+
+EXAMPLE 3 — Setup sequence with branch (graph TD):
+
+graph TD
+  A(Select wire type) --> B{Solid or flux-cored?}
+  B -->|Solid wire| C(V-groove drive roll)
+  B -->|Flux-cored| D(Knurled drive roll)
+  C --> E(Set gas — 75/25 Argon/CO2)
+  D --> F(No gas needed — self-shielded)
+  E --> G(Set polarity DCEP)
+  F --> H(Set polarity DCEN)
+  G --> I[Ready to weld]
+  H --> I

@@ -7,16 +7,17 @@ import type { ChatMessage, ConversationTurn, ThinkingStep, SSEEvent } from "@/ty
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ChatState {
-  turns:          ConversationTurn[];
-  thinkingSteps:  ThinkingStep[];
-  isStreaming:    boolean;
-  error:          string | null;
-  sessionId:      string;
-  sendMessage:    (text: string) => Promise<void>;
-  retryTurn:      (turnId: string) => Promise<void>;
-  setActiveIndex: (turnId: string, index: number) => void;
-  clearError:     () => void;
-  clearMessages:  () => void;
+  turns:           ConversationTurn[];
+  thinkingSteps:   ThinkingStep[];
+  isStreaming:     boolean;
+  error:           string | null;
+  sessionId:       string;
+  sendMessage:     (text: string) => Promise<void>;
+  retryTurn:       (turnId: string) => Promise<void>;
+  stopStreaming:   () => void;
+  setActiveIndex:  (turnId: string, index: number) => void;
+  clearError:      () => void;
+  clearMessages:   () => void;
 }
 
 const ChatContext = createContext<ChatState | null>(null);
@@ -39,9 +40,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isStreaming, setIsStreaming]     = useState(false);
   const [error, setError]                = useState<string | null>(null);
 
-  const sessionIdRef = useRef<string>(uuidv4());
-  const thinkingRef  = useRef<ThinkingStep[]>([]);
-  const turnsRef     = useRef<ConversationTurn[]>([]);
+  const sessionIdRef  = useRef<string>(uuidv4());
+  const thinkingRef   = useRef<ThinkingStep[]>([]);
+  const turnsRef      = useRef<ConversationTurn[]>([]);
+  const abortRef      = useRef<AbortController | null>(null);
 
   // Keep refs in sync so callbacks always see latest state
   useEffect(() => { thinkingRef.current = thinkingSteps; }, [thinkingSteps]);
@@ -56,10 +58,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setIsStreaming(true);
     setThinkingSteps([]);
 
+    // ID for the in-progress assistant message (created on first delta)
+    let streamingMsgId: string | null = null;
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
+        signal:  abort.signal,
         body: JSON.stringify({
           message:    userText,
           session_id: sessionIdRef.current,
@@ -96,22 +105,71 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setThinkingSteps(prev => [...prev, { message: event.message, ts: Date.now() }]);
           }
 
+          // First delta → create the message bubble with empty text
+          // Subsequent deltas → append to it
+          if (event.type === "delta") {
+            if (!streamingMsgId) {
+              streamingMsgId = uuidv4();
+              const newMsg: ChatMessage = {
+                id:        streamingMsgId,
+                role:      "assistant",
+                text:      event.text ?? "",
+                artifacts: [],
+                sources:   [],
+                thinking:  thinkingRef.current,
+                userQuery: userText,
+              };
+              setTurns(prev => prev.map(t => {
+                if (t.id !== targetTurnId) return t;
+                const responses = [...t.responses, newMsg];
+                return { ...t, responses, activeIndex: responses.length - 1 };
+              }));
+            } else {
+              const mid = streamingMsgId;
+              setTurns(prev => prev.map(t => {
+                if (t.id !== targetTurnId) return t;
+                return {
+                  ...t,
+                  responses: t.responses.map(r =>
+                    r.id === mid ? { ...r, text: r.text + (event.text ?? "") } : r
+                  ),
+                };
+              }));
+            }
+          }
+
+          // answer → finalize: attach artifacts + sources to the streamed message
           if (event.type === "answer") {
-            const assistantMsg: ChatMessage = {
-              id:        uuidv4(),
-              role:      "assistant",
-              text:      event.text,
-              artifacts: event.artifacts,
-              sources:   event.sources,
-              thinking:  thinkingRef.current,
-              userQuery: userText,
-            };
-            // Append response to the target turn and activate it
-            setTurns(prev => prev.map(t => {
-              if (t.id !== targetTurnId) return t;
-              const responses = [...t.responses, assistantMsg];
-              return { ...t, responses, activeIndex: responses.length - 1 };
-            }));
+            if (streamingMsgId) {
+              const mid = streamingMsgId;
+              setTurns(prev => prev.map(t => {
+                if (t.id !== targetTurnId) return t;
+                return {
+                  ...t,
+                  responses: t.responses.map(r =>
+                    r.id === mid
+                      ? { ...r, text: event.text, artifacts: event.artifacts, sources: event.sources }
+                      : r
+                  ),
+                };
+              }));
+            } else {
+              // No deltas were emitted (empty response) — create message directly
+              const assistantMsg: ChatMessage = {
+                id:        uuidv4(),
+                role:      "assistant",
+                text:      event.text,
+                artifacts: event.artifacts,
+                sources:   event.sources,
+                thinking:  thinkingRef.current,
+                userQuery: userText,
+              };
+              setTurns(prev => prev.map(t => {
+                if (t.id !== targetTurnId) return t;
+                const responses = [...t.responses, assistantMsg];
+                return { ...t, responses, activeIndex: responses.length - 1 };
+              }));
+            }
           }
 
           if (event.type === "error") setError(event.message);
@@ -123,10 +181,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Connection failed");
+      if (err instanceof Error && err.name === "AbortError") {
+        // User stopped — not an error, just clean up
+      } else {
+        setError(err instanceof Error ? err.message : "Connection failed");
+      }
       setIsStreaming(false);
       setThinkingSteps([]);
+    } finally {
+      abortRef.current = null;
     }
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    abortRef.current?.abort();
+    setIsStreaming(false);
+    setThinkingSteps([]);
   }, []);
 
   const sendMessage = useCallback(async (userText: string) => {
@@ -172,7 +242,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     <ChatContext.Provider value={{
       turns, thinkingSteps, isStreaming, error,
       sessionId: sessionIdRef.current,
-      sendMessage, retryTurn, setActiveIndex,
+      sendMessage, retryTurn, stopStreaming, setActiveIndex,
       clearError: () => setError(null), clearMessages,
     }}>
       {children}

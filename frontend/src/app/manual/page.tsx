@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import Sidebar from "@/components/Sidebar";
@@ -47,11 +48,27 @@ const DOCS = [
 ];
 
 export default function ManualPage() {
+  const searchParams = useSearchParams();
   const [activeDoc, setActiveDoc] = useState(DOCS[0]);
+  const [targetPage, setTargetPage] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // On mount, read ?doc and ?page from URL and jump directly to that page
+  useEffect(() => {
+    const docParam  = searchParams.get("doc");
+    const pageParam = searchParams.get("page");
+    if (docParam) {
+      const found = DOCS.find(d => d.id === docParam);
+      if (found) setActiveDoc(found);
+    }
+    if (pageParam) {
+      const p = parseInt(pageParam, 10);
+      if (!isNaN(p) && p > 0) setTargetPage(p);
+    }
+  }, [searchParams]);
   const isLight = mounted && resolvedTheme === "light";
 
   return (
@@ -100,7 +117,7 @@ export default function ManualPage() {
             </div>
 
             {DOCS.map(d => (
-              <button key={d.id} onClick={() => setActiveDoc(d)}
+              <button key={d.id} onClick={() => { setActiveDoc(d); setTargetPage(null); }}
                 className="text-left rounded-xl p-3 transition-all duration-150"
                 style={d.id === activeDoc.id ? {
                   background: "rgba(249,115,22,0.1)",
@@ -128,8 +145,8 @@ export default function ManualPage() {
           {/* PDF viewer */}
           <div className="flex-1 overflow-hidden">
             <iframe
-              key={activeDoc.id}
-              src={`/files/${activeDoc.filename}`}
+              key={`${activeDoc.id}-${targetPage}`}
+              src={`/files/${activeDoc.filename}${targetPage ? `#page=${targetPage}` : ""}`}
               className="w-full h-full"
               style={{ border: "none" }}
               title={activeDoc.title}

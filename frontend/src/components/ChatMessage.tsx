@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -176,6 +176,91 @@ function SpeakButton({ text }: { text: string }) {
   );
 }
 
+function ZoomableView({ children }: { children: React.ReactNode }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
+  const movedRef = useRef(false);
+
+  function clamp(v: number, lo: number, hi: number) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function handleWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    setScale(s => clamp(s * factor, 0.25, 8));
+  }
+
+  function handleClick() {
+    if (movedRef.current) return;
+    setScale(s => {
+      const next = s >= 3 ? 1 : clamp(s * 1.5, 0.25, 8);
+      if (next <= 1) setPos({ x: 0, y: 0 });
+      return next;
+    });
+  }
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (scale <= 1) return;
+    e.preventDefault();
+    movedRef.current = false;
+    dragRef.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
+    setIsDragging(true);
+
+    function onMove(ev: MouseEvent) {
+      if (!dragRef.current) return;
+      movedRef.current = true;
+      setPos({
+        x: dragRef.current.px + (ev.clientX - dragRef.current.mx),
+        y: dragRef.current.py + (ev.clientY - dragRef.current.my),
+      });
+    }
+    function onUp() {
+      setIsDragging(false);
+      dragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setTimeout(() => { movedRef.current = false; }, 50);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  const cursor = isDragging ? "grabbing" : scale > 1 ? "grab" : "zoom-in";
+
+  return (
+    <div
+      style={{
+        overflow: "hidden",
+        cursor,
+        userSelect: "none",
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+      onWheel={handleWheel}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+    >
+      <div
+        style={{
+          transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+          transformOrigin: "center center",
+          transition: isDragging ? "none" : "transform 0.15s ease-out",
+          width: "100%",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatMessageBubble({ message, onRetry, showNav }: Props) {
   const isUser = message.role === "user";
 
@@ -216,46 +301,170 @@ export default function ChatMessageBubble({ message, onRetry, showNav }: Props) 
 
       {/* Bubble */}
       <div className="flex-1 min-w-0">
-        {/* Inline artifacts — shown above text */}
-        {message.artifacts && message.artifacts.length > 0 && (
-          <div className="flex flex-col gap-4 mb-4">
-            {message.artifacts.map((artifact, i) => (
-              <div
-                key={artifact.identifier || i}
-                className="rounded-xl overflow-hidden"
-                style={{ border: "1px solid rgba(249,115,22,0.25)" }}
-              >
-                {/* Artifact header */}
-                <div
-                  className="flex items-center gap-2 px-3 py-2"
-                  style={{
-                    background:   "rgba(249,115,22,0.08)",
-                    borderBottom: "1px solid rgba(249,115,22,0.15)",
-                  }}
-                >
-                  <span style={{ color: "#f97316" }}>
-                    {TYPE_ICON[artifact.type]}
-                  </span>
-                  <span className="text-xs font-medium" style={{ color: "#f97316" }}>
-                    {artifact.title || (artifact.type === "image/jpeg" ? `Manual p.${artifact.page}` : artifact.type === "application/vnd.ant.mermaid" ? "Diagram" : "Interactive")}
-                  </span>
-                </div>
 
-                {/* Artifact content */}
-                <div style={{ background: "var(--bg-secondary)" }}>
-                  <ArtifactFrame artifact={artifact} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Text — below artifact */}
-        <div className="chat-prose">
+        {/* Text — always first, it's the answer */}
+        <div className="chat-prose mb-4">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {message.text}
           </ReactMarkdown>
         </div>
+
+        {/* Artifacts — ordered and laid out by type */}
+        {message.artifacts && message.artifacts.length > 0 && (() => {
+          // Sort: mermaid → image → html (abstract → concrete → interactive)
+          const sorted = [...message.artifacts].sort((a, b) => {
+            const order = (t: string) =>
+              t === "application/vnd.ant.mermaid" ? 0 :
+              t.startsWith("image") ? 1 : 2;
+            return order(a.type) - order(b.type);
+          });
+
+          const mermaidArtifacts = sorted.filter(a => a.type === "application/vnd.ant.mermaid");
+          const imageArtifacts   = sorted.filter(a => a.type.startsWith("image"));
+          const htmlArtifacts    = sorted.filter(a => a.type === "text/html");
+
+          const ArtifactCard = ({ artifact, i }: { artifact: typeof sorted[0]; i: number }) => {
+            const [expanded, setExpanded] = useState(false);   // arrows → full-screen modal
+            const [panZoom, setPanZoom]   = useState(false);   // + → inline pan-and-zoom
+            const title = artifact.title || (
+              artifact.type === "application/vnd.ant.mermaid" ? "Connection Diagram" :
+              artifact.type.startsWith("image") ? `Manual p.${artifact.page}` :
+              "Interactive"
+            );
+
+            return (
+              <>
+                {/* Inline card */}
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: "1px solid rgba(249,115,22,0.25)" }}
+                >
+                  {/* Header */}
+                  <div
+                    className="flex items-center justify-between gap-2 px-3 py-2"
+                    style={{
+                      background:   "rgba(249,115,22,0.08)",
+                      borderBottom: "1px solid rgba(249,115,22,0.15)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: "#f97316" }}>{TYPE_ICON[artifact.type]}</span>
+                      <span className="text-xs font-medium" style={{ color: "#f97316" }}>{title}</span>
+                    </div>
+                    {/* Arrows → full-screen expand */}
+                    <button
+                      onClick={() => setExpanded(true)}
+                      title="Expand"
+                      className="flex items-center justify-center w-5 h-5 rounded transition-opacity opacity-50 hover:opacity-100"
+                      style={{ color: "#f97316" }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Content area — plain or pan-zoom */}
+                  <div style={{ background: "var(--bg-secondary)", position: "relative" }}>
+                    {panZoom && artifact.type !== "text/html" ? (
+                      <div style={{ height: "360px" }}>
+                        <ZoomableView>
+                          <ArtifactFrame artifact={artifact} />
+                        </ZoomableView>
+                      </div>
+                    ) : (
+                      <ArtifactFrame artifact={artifact} />
+                    )}
+
+                    {/* + / × toggle for pan-zoom (only on non-HTML artifacts) */}
+                    {artifact.type !== "text/html" && (
+                      <button
+                        onClick={() => setPanZoom(v => !v)}
+                        title={panZoom ? "Exit zoom" : "Pan & zoom"}
+                        className="absolute bottom-2 right-2 flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold transition-all"
+                        style={{
+                          background: panZoom ? "rgba(249,115,22,0.35)" : "rgba(249,115,22,0.15)",
+                          border: "1px solid rgba(249,115,22,0.4)",
+                          color: "#f97316",
+                          zIndex: 10,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "rgba(249,115,22,0.4)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = panZoom ? "rgba(249,115,22,0.35)" : "rgba(249,115,22,0.15)")}
+                      >{panZoom ? "×" : "+"}</button>
+                    )}
+                  </div>
+
+                  {/* Hint bar when pan-zoom is active */}
+                  {panZoom && artifact.type !== "text/html" && (
+                    <div
+                      className="text-center text-xs py-1"
+                      style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)", background: "var(--bg-secondary)" }}
+                    >
+                      Scroll to zoom · Click to zoom in · Drag to pan
+                    </div>
+                  )}
+                </div>
+
+                {/* Full-screen expand modal (arrows only) */}
+                {expanded && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-6"
+                    style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}
+                    onClick={() => setExpanded(false)}
+                  >
+                    <div
+                      className="rounded-xl overflow-hidden w-full max-w-4xl flex flex-col"
+                      style={{ border: "1px solid rgba(249,115,22,0.4)", background: "var(--bg-secondary)", height: "85vh" }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <div
+                        className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+                        style={{ background: "rgba(249,115,22,0.08)", borderBottom: "1px solid rgba(249,115,22,0.15)" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: "#f97316" }}>{TYPE_ICON[artifact.type]}</span>
+                          <span className="text-sm font-medium" style={{ color: "#f97316" }}>{title}</span>
+                        </div>
+                        <button
+                          onClick={() => setExpanded(false)}
+                          className="flex items-center justify-center w-7 h-7 rounded-md transition-opacity opacity-60 hover:opacity-100"
+                          style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="overflow-auto flex-1">
+                        <ArtifactFrame artifact={artifact} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          };
+
+          return (
+            <div className="flex flex-col gap-4 mb-2">
+              {/* Mermaid + Image side by side when both present */}
+              {(mermaidArtifacts.length > 0 || imageArtifacts.length > 0) && (
+                <div className={
+                  mermaidArtifacts.length > 0 && imageArtifacts.length > 0
+                    ? "grid grid-cols-2 gap-4"
+                    : "flex flex-col gap-4"
+                }>
+                  {mermaidArtifacts.map((a, i) => <ArtifactCard key={a.identifier || i} artifact={a} i={i} />)}
+                  {imageArtifacts.map((a, i)   => <ArtifactCard key={a.identifier || i} artifact={a} i={i} />)}
+                </div>
+              )}
+              {/* HTML always full width */}
+              {htmlArtifacts.map((a, i) => <ArtifactCard key={a.identifier || i} artifact={a} i={i} />)}
+            </div>
+          );
+        })()}
+
 
         {/* Sources */}
         {message.sources && message.sources.length > 0 && (
