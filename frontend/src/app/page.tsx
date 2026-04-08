@@ -204,7 +204,7 @@ export default function HomePage() {
       </section>
 
       {/* Quick CTAs */}
-      <section className="px-6 md:px-12 pt-14 pb-4 max-w-6xl mx-auto w-full">
+      <section className="px-6 md:px-12 pt-4 pb-4 max-w-6xl mx-auto w-full">
         <div className="grid grid-cols-2 gap-4">
 
           {/* Chat card */}
@@ -304,7 +304,7 @@ export default function HomePage() {
       </section>
 
       {/* Quick Questions marquee */}
-      <section className="pb-6 overflow-hidden">
+      <section className="pb-2 overflow-hidden">
         <div className="flex items-center gap-4 px-6 md:px-12 mb-4">
           <span className="text-xs font-mono font-semibold tracking-widest uppercase flex-shrink-0" style={{ color: "#f97316" }}>
             Quick Questions :
@@ -346,7 +346,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="mt-auto px-6 py-5 flex items-center justify-between"
+      <footer className="mt-auto px-6 py-3 flex items-center justify-between"
         style={{ borderTop: "1px solid var(--border)" }}>
         <span className="text-xs pl-16" style={{ color: "var(--text-muted)" }}>OmniPro 220 AI — powered by Claude</span>
         <div className="flex items-center gap-2">
@@ -409,7 +409,7 @@ function ScorecardBubble() {
       <button
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        onClick={() => router.push("/eval")}
+        onClick={() => router.push("/eval#end")}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all"
         style={{
           color: open ? "var(--text-secondary)" : "var(--text-muted)",
@@ -424,12 +424,16 @@ function ScorecardBubble() {
         style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", opacity: open ? 1 : 0, transform: open ? "translateY(0)" : "translateY(6px)", zIndex: 50 }}>
         <div className="absolute -bottom-2 right-4 w-4 h-4 rotate-45"
           style={{ background: "var(--bg-secondary)", borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }} />
-        <p className="text-xs font-bold mb-2" style={{ color: "#a855f7" }}>How well does it work?</p>
+        <p className="text-xs font-bold mb-2" style={{ color: "#a855f7" }}>LLM-as-judge evaluation</p>
         <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--text-secondary)" }}>
-          A live report of how accurately the AI retrieves information and answers real questions about the OmniPro 220.
+          65 real questions a garage welder would ask — scored across 8 dimensions by Claude Haiku acting as judge.
         </p>
         <div className="flex flex-col gap-1.5">
-          {["Retrieval accuracy per query", "Response quality ratings", "Coverage across all processes"].map(tip => (
+          {[
+            "Factual accuracy & safety awareness",
+            "Completeness across text + artifacts",
+            "Tone, relevance & source citation",
+          ].map(tip => (
             <div key={tip} className="flex items-center gap-2">
               <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#a855f7" }} />
               <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{tip}</span>

@@ -549,11 +549,13 @@ If no figures are relevant or figure_urls was empty, omit the attribute entirely
 
 When to generate each:
 - Mermaid    : physical connections, cable routing, polarity setup, step sequences with decisions
-- HTML calc  : whenever the answer is a number or range that changes based on user inputs. Ask yourself: "would different inputs give different answers?" If yes → calculator. The user should adjust inputs and see results live, not read a static number.
+- HTML calc  : the answer is a continuous value the user would want to explore at different settings — duty cycle at different amperages, wire speed for different thicknesses, gas flow for different processes. Ask yourself: "would the user benefit from being able to adjust an input and immediately see the output change?" If yes → generate a calculator. Don't use a calculator for simple lookups where one value maps to one answer.
 - HTML config: "what settings for X?" → interactive inputs → outputs (amps, wire speed, gas)
-- HTML flow  : troubleshooting with 3+ root causes — make it interactive, clickable, with clear YES/NO branches. Not a static list — user should be able to click through the diagnosis
+- HTML flow  : the answer requires checking multiple possible causes in sequence to isolate ONE root cause. Ask yourself: "does the user need to rule out causes one by one until they find their specific problem?" If yes → always generate a flowchart. A list of things to check is not enough — the user needs to click YES/NO at each step and be routed to their specific fix. This applies to ANY symptom question: porosity, no arc, excessive spatter, wire slipping, burn-through, bad bead shape, etc.
 - Image      : only when the visual genuinely helps — a diagram, wiring connection, physical component, or step illustration. Do NOT generate an image artifact just because get_page_image was called.
-- None       : simple one-line facts, yes/no, basic definitions
+- None       : simple one-line facts, yes/no, basic definitions — where a single answer covers all users regardless of their setup
+
+IMPORTANT — when in doubt between generating an artifact or not: generate it. A flowchart or calculator that the user doesn't strictly need is better than a wall of text they have to parse themselves.
 
 For HTML flowcharts specifically — make them genuinely interactive:
 - Clickable YES/NO buttons at each step
@@ -632,6 +634,7 @@ Each format has one job. Never let text cross into an artifact's lane.
 **Text limit when artifacts are present:** 3–4 sentences max. No more.
 
 **What those sentences should do:** give the user enough context to actually use the artifact — what the diagram or image is showing them and why it matters, what to watch out for when following it, and the one thing people most commonly get wrong. Write as if you're standing next to them pointing at the diagram. Do NOT list out the values or connections already visible in it — explain what to do with them and why.""".replace("{TEMPLATE_CALCULATOR}", TEMPLATE_CALCULATOR).replace("{TEMPLATE_DECISION_TREE}", TEMPLATE_DECISION_TREE).replace("{TEMPLATE_MERMAID}", TEMPLATE_MERMAID)
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -904,13 +907,17 @@ def run_agent(
             log.info("Tool call cap reached (%d). Making final answer call.", MAX_TOOL_CALLS)
             emit("thinking", message="Synthesizing everything I found...")
             try:
+                # Trim message history to avoid token overflow on content-heavy sessions.
+                # Keep: first user message + last 6 turns (3 assistant+tool_result pairs).
+                trimmed = messages[:1] + messages[-6:] if len(messages) > 7 else messages
+                log.info("Final call: trimmed messages from %d → %d", len(messages), len(trimmed))
                 final_response = client.messages.create(
                     model      = CHAT_MODEL,
                     max_tokens = 16000,
                     thinking   = {"type": "adaptive"},
                     tools      = TOOLS,
                     system     = system,
-                    messages   = messages,
+                    messages   = trimmed,
                 )
                 for block in final_response.content:
                     if hasattr(block, "text"):

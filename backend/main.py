@@ -1,5 +1,5 @@
 """
-main.py — Step 4: FastAPI server with SSE streaming.
+main.py — FastAPI server with SSE streaming.
 
 Endpoints:
   POST /api/chat      → SSE stream of thinking events + final answer
@@ -26,6 +26,7 @@ Test SSE stream:
 from __future__ import annotations
 
 import asyncio
+import datetime as _dt
 import json
 import logging
 import queue
@@ -49,13 +50,16 @@ from backend.agent import (
     get_memory,
     run_agent,
 )
+from backend.eval_scorer import score_response as _score_response
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
 ROOT          = Path(__file__).parent.parent
 IMAGES_DIR    = ROOT / "data" / "images"
 FILES_DIR     = ROOT / "files"
-FEEDBACK_FILE = ROOT / "data" / "feedback.jsonl"
+FEEDBACK_FILE    = ROOT / "data" / "feedback.jsonl"
+EVAL_CASES_FILE  = ROOT / "data" / "eval_test_cases.json"
+EVAL_RESULTS_FILE = ROOT / "data" / "eval_results.json"
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 
@@ -216,9 +220,8 @@ async def feedback(req: FeedbackRequest):
     if req.rating not in (1, -1):
         raise HTTPException(status_code=400, detail="rating must be 1 or -1")
 
-    import datetime
     entry = {
-        "ts":         datetime.datetime.utcnow().isoformat(),
+        "ts":         _dt.datetime.utcnow().isoformat(),
         "session_id": req.session_id,
         "message_id": req.message_id,
         "rating":     req.rating,
@@ -249,9 +252,8 @@ async def site_feedback(req: SiteFeedbackRequest):
     if not 1 <= req.rating <= 5:
         raise HTTPException(status_code=400, detail="rating must be 1-5")
 
-    import datetime
     entry = {
-        "ts":      datetime.datetime.utcnow().isoformat(),
+        "ts":      _dt.datetime.utcnow().isoformat(),
         "name":    req.name[:100],
         "email":   req.email[:200],
         "message": req.message[:2000],
@@ -340,4 +342,268 @@ async def chat(req: ChatRequest):
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",   # disable nginx buffering on GCP
         },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EVAL ENDPOINT  — POST /api/eval/run
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/eval/count")
+def get_eval_count():
+    """Return the total number of test cases without running anything."""
+    if not EVAL_CASES_FILE.exists():
+        raise HTTPException(status_code=404, detail="eval_test_cases.json not found")
+    with open(EVAL_CASES_FILE, encoding="utf-8") as f:
+        data = json.load(f)
+    return {"total": len(data.get("test_cases", []))}
+
+
+@app.get("/api/eval/results")
+def get_eval_results():
+    """Return the last saved eval run, or 404 if no run has been saved yet."""
+    if not EVAL_RESULTS_FILE.exists():
+        raise HTTPException(status_code=404, detail="No eval results saved yet. Run an evaluation first.")
+    with open(EVAL_RESULTS_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+class EvalRequest(BaseModel):
+    case_ids: list[str] = []    # empty = run all
+    merge:    bool      = False # merge results into existing file instead of overwriting
+
+
+@app.post("/api/eval/run")
+async def eval_run(req: EvalRequest):
+    """
+    Run evaluation test cases through the agent and score with LLM-as-judge (Claude Haiku).
+
+    SSE events:
+      progress  → {"type":"progress", "current":N, "total":M, "tc_id":"TC001"}
+      result    → {"type":"result", "tc_id":"TC001", "question":"...", "category":"...",
+                   "response":"...", "score":0.85, "passed":true, "feedback":"...",
+                   "dimension_scores":{...}, "has_artifact":true, "sources_found":["p7"]}
+      summary   → {"type":"summary", "avg_score":0.87, "pass_rate":0.88, "total":50, "by_category":{...}}
+      done      → {"type":"done"}
+    """
+    if not EVAL_CASES_FILE.exists():
+        raise HTTPException(status_code=404, detail="eval_test_cases.json not found")
+
+    with open(EVAL_CASES_FILE) as f:
+        eval_data = json.load(f)
+
+    all_cases = eval_data["test_cases"]
+    if req.case_ids:
+        cases = [c for c in all_cases if c["id"] in req.case_ids]
+    else:
+        cases = all_cases
+
+    event_queue: queue.Queue = queue.Queue()
+
+    def score_response(tc, response_text, artifacts, sources):
+        def on_retry(label, attempt, wait):
+            event_queue.put({"type": "retry", "label": label, "attempt": attempt, "wait": wait})
+        return _score_response(tc, response_text, artifacts, sources, get_client, on_retry=on_retry)
+
+    import time as _time
+
+    def _call_with_retry(fn, label: str, max_retries: int = 4):
+        """Call fn(); on 429/529/overloaded retry with exponential backoff."""
+        delay = 20  # seconds before first retry
+        for attempt in range(max_retries + 1):
+            try:
+                return fn()
+            except Exception as e:
+                err_str = str(e)
+                is_retryable = (
+                    "529" in err_str or
+                    "overloaded" in err_str.lower() or
+                    "429" in err_str or
+                    "rate_limit" in err_str.lower() or
+                    "rate limit" in err_str.lower() or
+                    "too many requests" in err_str.lower()
+                )
+                if is_retryable and attempt < max_retries:
+                    log.warning("%s rate-limited (attempt %d/%d) — waiting %ds", label, attempt + 1, max_retries, delay)
+                    event_queue.put({
+                        "type":    "retry",
+                        "label":   label,
+                        "attempt": attempt + 1,
+                        "wait":    delay,
+                    })
+                    _time.sleep(delay)
+                    delay = min(delay * 2, 120)  # cap at 2 min
+                else:
+                    raise
+        raise RuntimeError(f"{label} failed after {max_retries} retries")
+
+    merge_mode = req.merge
+
+    def run_eval_thread():
+        # In merge mode: load existing results and keep non-re-run cases
+        if merge_mode and EVAL_RESULTS_FILE.exists():
+            try:
+                with open(EVAL_RESULTS_FILE) as f:
+                    existing_saved = json.load(f)
+                rerun_ids = {tc["id"] for tc in cases}
+                base_results = [r for r in existing_saved.get("results", []) if r["tc_id"] not in rerun_ids]
+            except Exception:
+                base_results = []
+        else:
+            base_results = []
+
+        results = list(base_results)
+        by_category: dict[str, list[float]] = {}
+
+        for i, tc in enumerate(cases):
+            event_queue.put({
+                "type":    "progress",
+                "current": i + 1,
+                "total":   len(cases),
+                "tc_id":   tc["id"],
+                "question": tc["question"][:80],
+            })
+
+            # Pause between cases to stay under TPM rate limit
+            if i > 0:
+                _time.sleep(10)
+
+            # Run through the actual agent with retry on overload
+            agent_result = {"text": "", "artifacts": [], "sources": []}
+            try:
+                returned = _call_with_retry(
+                    lambda: run_agent(
+                        user_message = tc["question"],
+                        session_id   = f"eval-{tc['id']}",
+                        history      = [],
+                        on_event     = None,
+                    ),
+                    label = tc["id"],
+                )
+                agent_result["text"]      = returned.get("text", "")
+                agent_result["artifacts"] = returned.get("artifacts", [])
+                agent_result["sources"]   = returned.get("sources", [])
+            except Exception as e:
+                log.error("Agent error for %s: %s", tc["id"], e)
+                agent_result["text"] = f"[Agent error: {e}]"
+
+            # Score with LLM judge
+            score_info = score_response(
+                tc,
+                agent_result["text"],
+                agent_result["artifacts"],
+                agent_result["sources"],
+            )
+
+            gt = tc["ground_truth"]
+            result = {
+                "type":              "result",
+                "tc_id":             tc["id"],
+                "question":          tc["question"],
+                "category":          tc["category"],
+                # actual agent output
+                "response":          agent_result["text"][:800],
+                "has_artifact":      len(agent_result["artifacts"]) > 0,
+                "artifact_types":    [a.get("type", "?") for a in agent_result["artifacts"]],
+                "sources_found":     [str(s.get("page", "")) for s in agent_result["sources"]],
+                # scores
+                "score":             score_info["aggregate"],
+                "passed":            score_info["passed"],
+                "feedback":          score_info["feedback"],
+                "dimension_scores":  score_info["dimension_scores"],
+                "must_not_violated": score_info["must_not_violated"],
+                # ground truth — shown in expanded view so user can see expected vs actual
+                "sources_expected":  tc.get("sources_expected", []),
+                "must_mention":      gt.get("must_mention", []),
+                "must_not_claim":    gt.get("must_not_claim", []),
+                "key_facts":         gt.get("key_facts", []),
+            }
+
+            results.append(result)
+            by_category.setdefault(tc["category"], []).append(score_info["aggregate"])
+
+            event_queue.put(result)
+
+            # Write incrementally after each case so progress is never lost
+            try:
+                all_scores_so_far = [r["score"] for r in results]
+                interim_saved = {
+                    "run_at":  _dt.datetime.utcnow().isoformat() + "Z",
+                    "summary": {
+                        "avg_score":   round(sum(all_scores_so_far) / len(all_scores_so_far), 3),
+                        "pass_rate":   round(sum(1 for r in results if r["passed"]) / len(results), 3),
+                        "pass_count":  sum(1 for r in results if r["passed"]),
+                        "total":       len(results),
+                        "by_category": {},
+                    },
+                    "results": results,
+                }
+                EVAL_RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(EVAL_RESULTS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(interim_saved, f, indent=2)
+            except Exception as e:
+                log.warning("Incremental save failed: %s", e)
+
+        # Summary
+        all_scores = [r["score"] for r in results]
+        avg_score  = round(sum(all_scores) / len(all_scores), 3) if all_scores else 0
+        pass_count = sum(1 for r in results if r["passed"])
+
+        category_summary = {
+            cat: {
+                "avg":   round(sum(scores) / len(scores), 3),
+                "count": len(scores),
+                "passed": sum(1 for s in scores if s >= 0.70),
+            }
+            for cat, scores in by_category.items()
+        }
+
+        summary_event = {
+            "type":        "summary",
+            "avg_score":   avg_score,
+            "pass_rate":   round(pass_count / len(results), 3) if results else 0,
+            "pass_count":  pass_count,
+            "total":       len(results),
+            "by_category": category_summary,
+        }
+        event_queue.put(summary_event)
+        event_queue.put({"type": "done"})
+
+        # Final save with complete merged results and full summary
+        try:
+            saved = {
+                "run_at":  _dt.datetime.utcnow().isoformat() + "Z",
+                "summary": {k: v for k, v in summary_event.items() if k != "type"},
+                "results": results,
+            }
+            EVAL_RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(EVAL_RESULTS_FILE, "w", encoding="utf-8") as f:
+                json.dump(saved, f, indent=2)
+            log.info("Eval results saved to %s", EVAL_RESULTS_FILE)
+        except Exception as e:
+            log.warning("Failed to save eval results: %s", e)
+
+    thread = threading.Thread(target=run_eval_thread, daemon=True)
+    thread.start()
+
+    async def eval_stream():
+        MAX_WAIT = 3600  # 60 min for full 65-case eval (includes retries)
+        waited   = 0
+        while waited < MAX_WAIT:
+            try:
+                ev = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: event_queue.get(timeout=30)
+                )
+            except queue.Empty:
+                waited += 30
+                yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+                continue
+            yield f"data: {json.dumps(ev)}\n\n"
+            if ev["type"] == "done":
+                break
+
+    return StreamingResponse(
+        eval_stream(),
+        media_type = "text/event-stream",
+        headers    = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
