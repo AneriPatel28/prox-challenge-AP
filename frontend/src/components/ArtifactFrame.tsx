@@ -111,7 +111,33 @@ export default function ArtifactFrame({ artifact }: Props) {
   }
 
   if (artifact.type === "image" || artifact.type === "image/jpeg" || artifact.type === "image/png") {
-    // Build URL from content if present, otherwise derive from source + page attributes
+    // Prefer figure crops (specific diagrams extracted from the page) over the full page scan
+    const figures = artifact.figure_urls?.length
+      ? artifact.figure_urls.map(u => u.startsWith("http") ? u : `${API_URL}${u}`)
+      : [];
+
+    if (figures.length > 0) {
+      return (
+        <div className="w-full flex flex-col items-start p-4 gap-4">
+          {artifact.title && (
+            <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+              {artifact.title}
+            </p>
+          )}
+          {figures.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt={`${artifact.title} — figure ${i + 1}`}
+              className="max-w-full rounded-lg object-contain"
+              style={{ border: "1px solid var(--border)", maxHeight: "500px" }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    // Fall back to full page image
     let src: string;
     if (artifact.content && (artifact.content.startsWith("http") || artifact.content.startsWith("/"))) {
       src = artifact.content.startsWith("http") ? artifact.content : `${API_URL}${artifact.content}`;

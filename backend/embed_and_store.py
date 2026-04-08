@@ -111,6 +111,7 @@ def smart_chunk(page: dict) -> list[dict]:
             "chunk_index":  idx,
             "content_type": page["content_type"],
             "image_url":    page["image_url"],
+            "figure_urls":  json.dumps(page.get("figure_urls", [])),  # stored as JSON string — ChromaDB doesn't support arrays
             "tokens":       token_count(chunk),
             "text":         chunk,
         })
@@ -211,6 +212,7 @@ def main():
             "chunk_index":  c["chunk_index"],
             "content_type": c["content_type"],
             "image_url":    c["image_url"],
+            "figure_urls":  c["figure_urls"],
         }
         for c in all_chunks
     ]

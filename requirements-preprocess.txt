@@ -1,0 +1,13 @@
+# Preprocessing-only dependencies — run ONCE locally to build data/descriptions.json
+# and extract figure crops. Never needed to run the server or in Docker.
+#
+# Install:
+#   pip install -r requirements-preprocess.txt
+#
+# Then run:
+#   python backend/preprocess.py --figures-only
+#   python backend/embed_and_store.py
+
+-r requirements.txt
+
+docling>=2.0.0

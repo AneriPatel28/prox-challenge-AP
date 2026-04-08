@@ -27,6 +27,7 @@ Run (CLI test):
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -210,26 +211,48 @@ def search_manual(query: str, n_results: int = TOP_K) -> list[dict]:
         results["distances"][0],
     ):
         chunks.append({
-            "score":        round(1 - dist, 4),   # cosine similarity (higher = better)
+            "score":        round(1 - dist, 4),
             "text":         doc,
             "source":       meta["source"],
             "page":         meta["page"],
             "section":      meta["section"],
             "content_type": meta["content_type"],
             "image_url":    meta["image_url"],
+            "figure_urls":  json.loads(meta.get("figure_urls", "[]")),
         })
 
     return chunks
 
 
 def get_page_image(source: str, page: int) -> dict:
-    """Return image metadata for a specific manual page."""
-    img_path = IMAGES_DIR / f"{source}-p{page:03d}.jpg"
+    """Return image metadata for a specific manual page, including figure crops if available."""
+    img_path    = IMAGES_DIR / f"{source}-p{page:03d}.jpg"
+    figure_urls = []
+
+    try:
+        results = get_collection().get(
+            where={"$and": [{"source": {"$eq": source}}, {"page": {"$eq": page}}]},
+            include=["metadatas"],
+        )
+        for meta in results.get("metadatas", []):
+            urls = json.loads(meta.get("figure_urls", "[]"))
+            for url in urls:
+                if url not in figure_urls:
+                    figure_urls.append(url)
+        # Filter to only files that actually exist on disk
+        figure_urls = [
+            url for url in figure_urls
+            if (IMAGES_DIR / url.lstrip("/images/")).exists()
+        ]
+    except Exception as e:
+        log.warning("Could not fetch figure_urls for %s p.%d: %s", source, page, e)
+
     return {
-        "image_url": f"/images/{source}-p{page:03d}.jpg",
-        "exists":    img_path.exists(),
-        "source":    source,
-        "page":      page,
+        "image_url":   f"/images/{source}-p{page:03d}.jpg",
+        "figure_urls": figure_urls,
+        "exists":      img_path.exists(),
+        "source":      source,
+        "page":        page,
     }
 
 
@@ -305,6 +328,7 @@ def resolve_cross_references(chunks: list[dict], query: str, max_extra: int = 3)
                         "section":      meta["section"],
                         "content_type": meta["content_type"],
                         "image_url":    meta["image_url"],
+                        "figure_urls":  json.loads(meta.get("figure_urls", "[]")),
                     })
                 log.info(
                     "Cross-ref resolved: %s p.%d → %d chunk(s) added (query-ranked)",
@@ -377,6 +401,7 @@ def expand_neighbors(chunks: list[dict], query: str, max_neighbors: int = 4) -> 
                     "section":      meta["section"],
                     "content_type": meta["content_type"],
                     "image_url":    meta["image_url"],
+                    "figure_urls":  json.loads(meta.get("figure_urls", "[]")),
                 })
                 log.info("Neighbor added: %s p.%d (score %.3f)", source, neighbor_page, score)
             except Exception as e:
@@ -500,15 +525,27 @@ HTML — calculators, settings configurators, troubleshooting flowcharts:
 </antArtifact>
 
 Image — when the manual page itself is the clearest answer:
-<antArtifact identifier="[kebab-id]" type="image/jpeg" title="[descriptive title]" source="[source]" page="[page]">
+<antArtifact identifier="[kebab-id]" type="image/jpeg" title="[descriptive title]" source="[source]" page="[page]" figure_urls="[comma-separated figure_urls from tool result, or omit if empty]">
 </antArtifact>
+
+IMPORTANT — figure selection rules (apply every time you get figure crops):
+1. You receive the actual figure images in the tool result — look at them visually.
+2. Only include a figure in figure_urls if it directly shows something relevant to the user's question.
+   Ask yourself: "does this image help the user do or understand what they asked?" If no → exclude it.
+3. If NONE of the figures are relevant, omit figure_urls entirely — do not show images just because they exist.
+4. If you cannot tell which specific crop is relevant from visual inspection, include all of them.
+5. Never include decorative images, logos, safety icons, or page layout elements.
+
+Put selected URLs as a comma-separated string:
+  figure_urls="/images/owner-manual-p007-fig01.jpg,/images/owner-manual-p007-fig02.jpg"
+If no figures are relevant or figure_urls was empty, omit the attribute entirely.
 
 When to generate each:
 - Mermaid    : physical connections, cable routing, polarity setup, step sequences with decisions
 - HTML calc  : whenever the answer is a number or range that changes based on user inputs. Ask yourself: "would different inputs give different answers?" If yes → calculator. The user should adjust inputs and see results live, not read a static number.
 - HTML config: "what settings for X?" → interactive inputs → outputs (amps, wire speed, gas)
 - HTML flow  : troubleshooting with 3+ root causes — make it interactive, clickable, with clear YES/NO branches. Not a static list — user should be able to click through the diagnosis
-- Image      : whenever get_page_image returns exists:true — ALWAYS generate the image artifact, never skip it. Also use when the user asks to "show" or "see" something.
+- Image      : only when the visual genuinely helps — a diagram, wiring connection, physical component, or step illustration. Do NOT generate an image artifact just because get_page_image was called.
 - None       : simple one-line facts, yes/no, basic definitions
 
 For HTML flowcharts specifically — make them genuinely interactive:
@@ -587,13 +624,18 @@ def parse_artifacts(text: str) -> list:
         attrs = {}
         for m in re.finditer(r'(\w+)=["\']([^"\']*)["\']', attrs_str):
             attrs[m.group(1)] = m.group(2)
+        # figure_urls attribute is a comma-separated list of image paths
+        raw_fig = attrs.get("figure_urls", "")
+        figure_urls = [u.strip() for u in raw_fig.split(",") if u.strip()] if raw_fig else []
+
         results.append({
-            "identifier": attrs.get("identifier", ""),
-            "type":       attrs.get("type", "text/html"),
-            "title":      attrs.get("title", ""),
-            "source":     attrs.get("source", ""),
-            "page":       int(attrs["page"]) if attrs.get("page") else None,
-            "content":    content.strip(),
+            "identifier":  attrs.get("identifier", ""),
+            "type":        attrs.get("type", "text/html"),
+            "title":       attrs.get("title", ""),
+            "source":      attrs.get("source", ""),
+            "page":        int(attrs["page"]) if attrs.get("page") else None,
+            "figure_urls": figure_urls,
+            "content":     content.strip(),
         })
     return results
 
@@ -795,10 +837,36 @@ def run_agent(
                 except Exception as e:
                     log.error("get_page_image failed: %s", e)
                     result = {"error": str(e), "image_url": "", "exists": False}
+
+                # Build content: metadata text + each figure crop as a vision block
+                # so Claude can visually inspect crops and select only relevant ones
+                tool_content = [{"type": "text", "text": json.dumps({
+                    "image_url":   result["image_url"],
+                    "figure_urls": result.get("figure_urls", []),
+                    "exists":      result.get("exists", False),
+                    "source":      result.get("source", source),
+                    "page":        result.get("page", page),
+                })}]
+                for fig_url in result.get("figure_urls", []):
+                    fig_path = IMAGES_DIR / Path(fig_url).name
+                    if fig_path.exists():
+                        try:
+                            img_b64 = base64.b64encode(fig_path.read_bytes()).decode("utf-8")
+                            tool_content.append({
+                                "type": "image",
+                                "source": {
+                                    "type":       "base64",
+                                    "media_type": "image/jpeg",
+                                    "data":       img_b64,
+                                },
+                            })
+                        except Exception as e:
+                            log.warning("Could not encode figure %s: %s", fig_url, e)
+
                 tool_results.append({
                     "type":        "tool_result",
                     "tool_use_id": block.id,
-                    "content":     json.dumps(result),
+                    "content":     tool_content,
                 })
 
         # Append assistant turn + tool results to history

@@ -14,12 +14,13 @@ export interface Source {
 }
 
 export interface Artifact {
-  identifier: string;
-  type:       "text/html" | "application/vnd.ant.mermaid" | "image" | "image/jpeg" | "image/png";
-  title:      string;
-  content:    string;
-  source?:    string;
-  page?:      number | null;
+  identifier:  string;
+  type:        "text/html" | "application/vnd.ant.mermaid" | "image" | "image/jpeg" | "image/png";
+  title:       string;
+  content:     string;
+  source?:     string;
+  page?:       number | null;
+  figure_urls?: string[];
 }
 
 export interface ChatMessage {

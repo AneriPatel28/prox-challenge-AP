@@ -61,6 +61,77 @@ PDFS = [
 # PAGE RENDERING
 # ══════════════════════════════════════════════════════════════════════════════
 
+def extract_figures_docling(source: str, pdf_path: Path) -> dict:
+    """
+    Use Docling ML layout detection to find and crop all figures from a PDF.
+    Detects both raster images AND vector graphics (schematics, wiring diagrams).
+    PyMuPDF's get_images() only finds raster — this catches everything.
+
+    Returns {page_num (1-based): ["/images/...", ...]} for every page that has figures.
+    Run once during preprocessing — output saved to disk, no runtime dependency on Docling.
+    """
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling_core.types.doc import PictureItem
+
+    print(f"\n  Docling: processing {pdf_path.name}...", flush=True)
+
+    # generate_picture_images=True is required — without it Docling detects layout
+    # but doesn't export pixel data, giving 0 figures
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.images_scale = 2.0
+    pipeline_options.generate_picture_images = True
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+    result = converter.convert(str(pdf_path))
+
+    page_figures: dict[int, list[str]] = {}
+    fig_counters: dict[int, int]       = {}
+
+    for pic in result.document.pictures:
+        if not pic.prov:
+            continue
+
+        page_num = pic.prov[0].page_no  # 1-based
+
+        try:
+            pil_img = pic.get_image(result.document)
+            if pil_img is None:
+                continue
+            w, h = pil_img.size
+            # Filter junk: icons, arrows, separators, decorative elements
+            if w < 150 or h < 150:
+                continue  # too small — icons, bullets
+            if max(w, h) / min(w, h) > 5:
+                continue  # too elongated — arrows, divider lines
+            if w * h < 30_000:
+                continue  # too little content area
+
+            # Add padding so surrounding labels and captions aren't clipped
+            from PIL import ImageOps
+            pil_img = ImageOps.expand(pil_img.convert("RGB"), border=30, fill="white")
+
+            fig_counters[page_num] = fig_counters.get(page_num, 0) + 1
+            fig_idx  = fig_counters[page_num]
+            fig_name = f"{source}-p{page_num:03d}-fig{fig_idx:02d}.jpg"
+            fig_path = IMAGES_DIR / fig_name
+            pil_img.save(str(fig_path), "JPEG", quality=90)
+
+            page_figures.setdefault(page_num, []).append(f"/images/{fig_name}")
+            print(f"    p{page_num:03d} fig{fig_idx:02d}: {w}×{h}px → {fig_name}")
+        except Exception as e:
+            print(f"    WARNING: figure on p{page_num} failed: {e}")
+
+    total = sum(len(v) for v in page_figures.values())
+    print(f"  Docling: {total} figures extracted across {len(page_figures)} pages\n", flush=True)
+    return page_figures
+
+
 def render_page_to_jpeg(page: fitz.Page, source: str, page_num: int) -> Path:
     img_path = IMAGES_DIR / f"{source}-p{page_num:03d}.jpg"
     if not img_path.exists():
@@ -278,15 +349,18 @@ def process_pdf(
     pdf_path: Path,
     client: anthropic.Anthropic,
 ) -> list[dict]:
-    doc    = fitz.open(str(pdf_path))
-    pages  = []
+    # Run Docling once for the whole PDF to get all figure crops
+    all_figures = extract_figures_docling(source, pdf_path)  # {page_num: [urls]}
+
+    doc   = fitz.open(str(pdf_path))
+    pages = []
 
     with tqdm(total=len(doc), desc=f"  {source}", unit="page", ncols=80) as pbar:
         for page_idx in range(len(doc)):
             page_num  = page_idx + 1
             page      = doc[page_idx]
 
-            # Render JPEG
+            # Render full-page JPEG (PyMuPDF — unchanged)
             img_path  = render_page_to_jpeg(page, source, page_num)
             image_url = f"/images/{source}-p{page_num:03d}.jpg"
 
@@ -311,8 +385,9 @@ def process_pdf(
                 "page":         page_num,
                 "content_type": content_type,
                 "image_url":    image_url,
-                "raw_text":     raw_text,     # what PyMuPDF extracted (for comparison)
-                "text":         text,          # final text to embed later
+                "figure_urls":  all_figures.get(page_num, []),
+                "raw_text":     raw_text,
+                "text":         text,
             })
 
             pbar.update(1)
@@ -453,11 +528,52 @@ def process_table_pages_only():
     print(f"Done. Updated {updated} table pages → {OUTPUT_FILE}")
 
 
+def process_figures_only():
+    """
+    Extract figure crops using Docling ML layout detection. No Opus calls.
+    Detects raster images AND vector graphics (schematics, wiring diagrams).
+    Loads existing descriptions.json, updates figure_urls in-place, saves back.
+
+    Run:
+      python preprocess.py --figures-only
+    """
+    if not OUTPUT_FILE.exists():
+        print("ERROR: descriptions.json not found. Run full preprocess first.")
+        return
+
+    pages   = json.loads(OUTPUT_FILE.read_text())
+    pdf_map = {source: pdf_path for source, pdf_path in PDFS if pdf_path.exists()}
+
+    # Run Docling once per PDF — collects all figures across all pages
+    all_figures_by_source = {}
+    for source, pdf_path in pdf_map.items():
+        all_figures_by_source[source] = extract_figures_docling(source, pdf_path)
+
+    # Update each page entry with figure_urls + ensure image_url is always set
+    updated = 0
+    for entry in pages:
+        source   = entry["source"]
+        page_num = entry["page"]
+
+        # Always ensure full page image URL is present
+        entry["image_url"] = f"/images/{source}-p{page_num:03d}.jpg"
+
+        figs = all_figures_by_source.get(source, {}).get(page_num, [])
+        entry["figure_urls"] = figs
+        if figs:
+            updated += 1
+
+    OUTPUT_FILE.write_text(json.dumps(pages, indent=2, ensure_ascii=False))
+    print(f"\nDone. {updated} pages updated with figure crops → {OUTPUT_FILE}")
+
+
 if __name__ == "__main__":
     import sys
     if "--text-only" in sys.argv:
         process_text_pages_only()
     elif "--tables-only" in sys.argv:
         process_table_pages_only()
+    elif "--figures-only" in sys.argv:
+        process_figures_only()
     else:
         main()
