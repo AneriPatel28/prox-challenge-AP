@@ -4,17 +4,17 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 const FAQS = [
-  { q: "What is this?",             a: "This is an AI assistant for the Vulcan OmniPro 220 welder. Ask it anything about setup, settings, or troubleshooting — it reads the full owner's manual for you." },
-  { q: "Where are the manuals?",    a: "Click Manual Explorer in the sidebar. You'll find the Owner's Manual, Quick Start Guide, and Selection Chart all in one place." },
-  { q: "What processes does it support?", a: "The OmniPro 220 supports MIG, TIG, Stick, and Flux-Core (FCAW). The AI knows the setup and settings for all four." },
-  { q: "Is it free to use?",        a: "Yes! Just open the chat and start asking. No sign-up needed." },
+  { q: "What pages are on this site?", a: "There are 4 pages: Home, AI Assistant (chat), Manual Explorer, and AI Scorecard. Pick one below to jump straight there.", links: [{ label: "AI Assistant →", href: "/chat" }, { label: "Manual Explorer →", href: "/manual" }, { label: "AI Scorecard →", href: "/eval" }] },
+  { q: "What can the AI Assistant do?", a: "It answers any question about the OmniPro 220 — setup, settings, troubleshooting, specs, polarity, duty cycle. It reads the full owner's manual so you don't have to.", link: { label: "Open AI Assistant →", href: "/chat" } },
+  { q: "Where are the manuals?",        a: "Manual Explorer has all three manuals — Owner's Manual, Quick Start Guide, and Selection Chart. You can browse page by page.", link: { label: "Open Manual Explorer →", href: "/manual" } },
+  { q: "What is the AI Scorecard?",     a: "It shows how the AI was tested — 65 real questions scored across 8 dimensions like accuracy, completeness, and tone. Currently passing 65/65.", link: { label: "View AI Scorecard →", href: "/eval" } },
 ];
 
-interface Msg { role: "bot" | "user"; text: string; link?: { label: string; href: string } }
+interface Msg { role: "bot" | "user"; text: string; link?: { label: string; href: string }; links?: { label: string; href: string }[] }
 
 const GREETING: Msg = {
   role: "bot",
-  text: "Hey! 👋 I can help you find your way around. Ask me anything about the site, or pick a question below.",
+  text: "Hey! 👋 I'm the site guide — I'll help you find your way around. I'm separate from the AI Assistant. Pick a question or ask me anything about the site.",
 };
 
 export default function FloatingBot() {
@@ -34,22 +34,64 @@ export default function FloatingBot() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
 
-    // Simple keyword matching
+    // Rule-based keyword matching — site navigation only
     const t = text.toLowerCase();
     let reply: Msg;
 
-    if (t.includes("manual") || t.includes("pdf") || t.includes("document")) {
-      reply = { role: "bot", text: "You can browse all three manuals in the Manual Explorer — Owner's Manual, Quick Start Guide, and Selection Chart.", link: { label: "Open Manual Explorer →", href: "/manual" } };
-    } else if (t.includes("chat") || t.includes("ask") || t.includes("question") || t.includes("help")) {
-      reply = { role: "bot", text: "Head to the AI Assistant and type your question. It knows everything about setup, troubleshooting, settings, and specs.", link: { label: "Open AI Assistant →", href: "/chat" } };
-    } else if (t.includes("mig") || t.includes("tig") || t.includes("stick") || t.includes("flux") || t.includes("weld")) {
-      reply = { role: "bot", text: "The OmniPro 220 supports MIG, TIG, Stick, and Flux-Core. The AI Assistant can walk you through setup for any of them!", link: { label: "Ask the AI →", href: "/chat" } };
-    } else if (t.includes("setting") || t.includes("voltage") || t.includes("speed") || t.includes("amp")) {
-      reply = { role: "bot", text: "For specific settings like voltage or wire speed, the AI Assistant gives you exact numbers based on your material and thickness.", link: { label: "Get settings →", href: "/chat" } };
-    } else if (t.includes("what") && (t.includes("this") || t.includes("site") || t.includes("app"))) {
-      reply = { role: "bot", text: "This is an AI-powered assistant for the Vulcan OmniPro 220 welder. It reads the full manual so you don't have to — just ask your question!" };
+    // ── Pages & navigation ────────────────────────────────────────────────────
+    if (t.includes("home") || t.includes("main page") || t.includes("landing") || t.includes("back to")) {
+      reply = { role: "bot", text: "The home page gives you an overview of the site — quick topics, process cards, and links to all sections.", link: { label: "Go to Home →", href: "/" } };
+
+    } else if (t.includes("page") && (t.includes("all") || t.includes("pages") || t.includes("what") || t.includes("which"))) {
+      reply = { role: "bot", text: "The site has 4 pages: Home, AI Assistant, Manual Explorer, and AI Scorecard.", links: [{ label: "AI Assistant →", href: "/chat" }, { label: "Manual Explorer →", href: "/manual" }, { label: "AI Scorecard →", href: "/eval" }] };
+
+    // ── AI Assistant ──────────────────────────────────────────────────────────
+    } else if (t.includes("chat") || t.includes("ai assistant") || t.includes("ask") || (t.includes("question") && !t.includes("score")) || t.includes("assistant")) {
+      reply = { role: "bot", text: "The AI Assistant answers anything about the OmniPro 220 — setup, settings, troubleshooting, specs, polarity, duty cycle. It reads the full owner's manual for you.", link: { label: "Open AI Assistant →", href: "/chat" } };
+
+    // ── Manual Explorer ───────────────────────────────────────────────────────
+    } else if (t.includes("manual") || t.includes("pdf") || t.includes("document") || t.includes("owner") || t.includes("quick start") || t.includes("selection chart") || t.includes("page") || t.includes("browse")) {
+      reply = { role: "bot", text: "Manual Explorer has all three manuals — Owner's Manual, Quick Start Guide, and Selection Chart. Browse page by page or jump to a section.", link: { label: "Open Manual Explorer →", href: "/manual" } };
+
+    // ── AI Scorecard / Eval ───────────────────────────────────────────────────
+    } else if (t.includes("score") || t.includes("eval") || t.includes("test") || t.includes("accuracy") || t.includes("how good") || t.includes("benchmark") || t.includes("pass") || t.includes("rating") || t.includes("dimension") || t.includes("judge")) {
+      reply = { role: "bot", text: "The AI Scorecard shows how the AI was tested — 65 real questions scored across 8 dimensions: factual accuracy, completeness, tone, safety, and more. Currently 65/65 passing.", link: { label: "View AI Scorecard →", href: "/eval" } };
+
+    // ── Welding processes ─────────────────────────────────────────────────────
+    } else if (t.includes("mig") || t.includes("tig") || t.includes("stick") || t.includes("flux") || t.includes("fcaw") || t.includes("process") || t.includes("weld")) {
+      reply = { role: "bot", text: "The OmniPro 220 supports MIG, TIG, Stick, and Flux-Core (FCAW). The AI Assistant knows setup and settings for all four.", link: { label: "Ask the AI →", href: "/chat" } };
+
+    // ── Settings & specs ──────────────────────────────────────────────────────
+    } else if (t.includes("setting") || t.includes("voltage") || t.includes("wire speed") || t.includes("amp") || t.includes("spec") || t.includes("duty cycle") || t.includes("gas") || t.includes("polarity")) {
+      reply = { role: "bot", text: "For settings like voltage, wire speed, or duty cycle — the AI Assistant gives exact numbers based on your process, material, and thickness.", link: { label: "Get settings →", href: "/chat" } };
+
+    // ── Troubleshooting ───────────────────────────────────────────────────────
+    } else if (t.includes("troubl") || t.includes("problem") || t.includes("issue") || t.includes("fix") || t.includes("not work") || t.includes("porosity") || t.includes("spatter") || t.includes("arc") || t.includes("broken")) {
+      reply = { role: "bot", text: "For troubleshooting — describe your problem to the AI Assistant. It'll walk you through the diagnosis step by step.", link: { label: "Open AI Assistant →", href: "/chat" } };
+
+    // ── What is this site / about ─────────────────────────────────────────────
+    } else if (t.includes("what is") || t.includes("what's this") || t.includes("about") || t.includes("site") || t.includes("app") || t.includes("omnipro") || t.includes("220") || t.includes("vulcan") || t.includes("harbor")) {
+      reply = { role: "bot", text: "This site is an AI-powered assistant for the Vulcan OmniPro 220 welder. It reads the full owner's manual so you can ask questions in plain English instead of hunting through 50 pages of PDF." };
+
+    // ── What is this bot ──────────────────────────────────────────────────────
+    } else if (t.includes("who are you") || t.includes("what are you") || t.includes("you") || t.includes("bot") || t.includes("guide") || t.includes("navigate") || t.includes("different")) {
+      reply = { role: "bot", text: "I'm the Site Guide — I only help you navigate this website. I'm separate from the AI Assistant, which actually answers welding questions. Think of me as the directory.", link: { label: "Open AI Assistant →", href: "/chat" } };
+
+    // ── Feedback ──────────────────────────────────────────────────────────────
+    } else if (t.includes("feedback") || t.includes("review") || t.includes("opinion") || t.includes("improve") || t.includes("suggest") || t.includes("report")) {
+      reply = { role: "bot", text: "You can leave feedback using the thumbs up/down on any AI response in the chat. Your input helps improve the AI.", link: { label: "Open AI Assistant →", href: "/chat" } };
+
+    // ── Cost / sign-up ────────────────────────────────────────────────────────
+    } else if (t.includes("free") || t.includes("cost") || t.includes("price") || t.includes("pay") || t.includes("sign up") || t.includes("account") || t.includes("login") || t.includes("register")) {
+      reply = { role: "bot", text: "Completely free — no sign-up, no account, no login needed. Just open the chat and start asking.", link: { label: "Open AI Assistant →", href: "/chat" } };
+
+    // ── Help / general ────────────────────────────────────────────────────────
+    } else if (t.includes("help") || t.includes("how do i") || t.includes("how to") || t.includes("where")) {
+      reply = { role: "bot", text: "Here's what's on the site:", links: [{ label: "AI Assistant →", href: "/chat" }, { label: "Manual Explorer →", href: "/manual" }, { label: "AI Scorecard →", href: "/eval" }] };
+
+    // ── Default ───────────────────────────────────────────────────────────────
     } else {
-      reply = { role: "bot", text: "I'm not sure about that one! Try asking the AI Assistant — it knows the full owner's manual.", link: { label: "Open AI Assistant →", href: "/chat" } };
+      reply = { role: "bot", text: "I only handle site navigation — for welding questions, the AI Assistant is what you want.", link: { label: "Open AI Assistant →", href: "/chat" } };
     }
 
     setTimeout(() => setMessages(prev => [...prev, reply]), 400);
@@ -142,6 +184,17 @@ export default function FloatingBot() {
                       {m.link.label}
                     </Link>
                   )}
+                  {m.links && (
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      {m.links.map(l => (
+                        <Link key={l.href} href={l.href}
+                          className="flex items-center gap-1 text-[11px] font-semibold transition-opacity hover:opacity-70"
+                          style={{ color: "#f97316" }}>
+                          {l.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -151,7 +204,7 @@ export default function FloatingBot() {
           {/* Quick questions */}
           {messages.length <= 1 && (
             <div className="px-3 pb-2 flex flex-col gap-1">
-              {FAQS.slice(0, 3).map(f => (
+              {FAQS.map(f => (
                 <button key={f.q} onClick={() => send(f.q)}
                   className="text-left text-xs px-3 py-2 rounded-lg transition-all"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}

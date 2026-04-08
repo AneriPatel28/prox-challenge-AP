@@ -9,19 +9,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Category = "specs" | "polarity" | "settings" | "troubleshooting" | "visual" | "cross_reference" | "ambiguous" | "tone" | "safety" | "robustness";
 
-const CAT_STYLE: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  specs:          { label: "Specs",          color: "#34d399", bg: "rgba(52,211,153,0.1)",  border: "rgba(52,211,153,0.35)"  },
-  polarity:       { label: "Polarity",       color: "#38bdf8", bg: "rgba(56,189,248,0.1)",  border: "rgba(56,189,248,0.35)"  },
-  settings:       { label: "Settings",       color: "#a78bfa", bg: "rgba(167,139,250,0.1)", border: "rgba(167,139,250,0.35)" },
-  troubleshooting:{ label: "Troubleshoot",   color: "#f97316", bg: "rgba(249,115,22,0.1)",  border: "rgba(249,115,22,0.35)"  },
-  visual:         { label: "Visual",         color: "#fb923c", bg: "rgba(251,146,60,0.1)",  border: "rgba(251,146,60,0.35)"  },
-  cross_reference:{ label: "Cross-Ref",      color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  border: "rgba(96,165,250,0.35)"  },
-  ambiguous:      { label: "Ambiguous",      color: "#fbbf24", bg: "rgba(251,191,36,0.1)",  border: "rgba(251,191,36,0.35)"  },
-  tone:           { label: "Tone",           color: "#c084fc", bg: "rgba(192,132,252,0.1)", border: "rgba(192,132,252,0.35)" },
-  safety:         { label: "Safety",         color: "#f87171", bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.35)" },
-  robustness:     { label: "Robustness",     color: "#94a3b8", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.35)" },
-  rejection:       { label: "Rejection",       color: "#e879f9", bg: "rgba(232,121,249,0.1)", border: "rgba(232,121,249,0.35)" },
-  prompt_injection:{ label: "Prompt Inject",  color: "#f43f5e", bg: "rgba(244,63,94,0.1)",   border: "rgba(244,63,94,0.35)"   },
+const CAT_STYLE: Record<string, { label: string; colorDark: string; colorLight: string; bg: string; border: string }> = {
+  specs:          { label: "Specs",          colorDark: "#34d399", colorLight: "#047857", bg: "rgba(52,211,153,0.1)",  border: "rgba(52,211,153,0.35)"  },
+  polarity:       { label: "Polarity",       colorDark: "#38bdf8", colorLight: "#0369a1", bg: "rgba(56,189,248,0.1)",  border: "rgba(56,189,248,0.35)"  },
+  settings:       { label: "Settings",       colorDark: "#a78bfa", colorLight: "#6d28d9", bg: "rgba(167,139,250,0.1)", border: "rgba(167,139,250,0.35)" },
+  troubleshooting:{ label: "Troubleshoot",   colorDark: "#f97316", colorLight: "#c2410c", bg: "rgba(249,115,22,0.1)",  border: "rgba(249,115,22,0.35)"  },
+  visual:         { label: "Visual",         colorDark: "#fb923c", colorLight: "#c2410c", bg: "rgba(251,146,60,0.1)",  border: "rgba(251,146,60,0.35)"  },
+  cross_reference:{ label: "Cross-Ref",      colorDark: "#60a5fa", colorLight: "#1d4ed8", bg: "rgba(96,165,250,0.1)",  border: "rgba(96,165,250,0.35)"  },
+  ambiguous:      { label: "Ambiguous",      colorDark: "#fbbf24", colorLight: "#b45309", bg: "rgba(251,191,36,0.1)",  border: "rgba(251,191,36,0.35)"  },
+  tone:           { label: "Tone",           colorDark: "#c084fc", colorLight: "#7c3aed", bg: "rgba(192,132,252,0.1)", border: "rgba(192,132,252,0.35)" },
+  safety:         { label: "Safety",         colorDark: "#f87171", colorLight: "#dc2626", bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.35)" },
+  robustness:     { label: "Robustness",     colorDark: "#94a3b8", colorLight: "#475569", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.35)" },
+  rejection:      { label: "Rejection",      colorDark: "#e879f9", colorLight: "#86198f", bg: "rgba(232,121,249,0.1)", border: "rgba(232,121,249,0.35)" },
+  prompt_injection:{ label: "Prompt Inject", colorDark: "#f43f5e", colorLight: "#be123c", bg: "rgba(244,63,94,0.1)",   border: "rgba(244,63,94,0.35)"   },
 };
 
 interface DimScores {
@@ -94,9 +94,9 @@ function DimBar({ label, value, dimKey }: { label: string; value: number; dimKey
         </div>
       )}
       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-        <div className="h-full rounded-full transition-all" style={{ width: pct(value), background: scoreColor(value) }} />
+        <div className="h-full rounded-full transition-all" style={{ width: pct(value), background: sc(value) }} />
       </div>
-      <span className="text-[10px] w-7 text-right font-mono" style={{ color: scoreColor(value) }}>{pct(value)}</span>
+      <span className="text-[10px] w-7 text-right font-mono" style={{ color: sc(value) }}>{pct(value)}</span>
     </div>
   );
 }
@@ -118,6 +118,23 @@ function DimBarNA({ label }: { label: string }) {
 }
 
 export default function EvalPage() {
+  const [isLight, setIsLight] = useState(false);
+  useEffect(() => {
+    const check = () => setIsLight(!document.documentElement.classList.contains("dark"));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
+  // Theme-aware helpers
+  const chipBg   = (rgba: string) => isLight ? rgba.replace(/[\d.]+\)$/, "0.18)") : rgba;
+  const sc       = (s: number) => s >= 0.85
+    ? (isLight ? "#15803d" : "#4ade80")
+    : s >= 0.70
+    ? (isLight ? "#b45309" : "#fbbf24")
+    : (isLight ? "#dc2626" : "#f87171");
+
   const [running, setRunning]     = useState(false);
   const [results, setResults]     = useState<EvalResult[]>([]);
   const [summary, setSummary]     = useState<Summary | null>(null);
@@ -336,8 +353,8 @@ export default function EvalPage() {
             {summary && (
               <div className="px-4 py-3 flex-shrink-0 space-y-2" style={{ borderBottom: "1px solid var(--border)" }}>
                 {[
-                  { label: "Avg score",  value: pct(summary.avg_score),  color: scoreColor(summary.avg_score)  },
-                  { label: "Pass rate",  value: pct(summary.pass_rate),   color: scoreColor(summary.pass_rate)  },
+                  { label: "Avg score",  value: pct(summary.avg_score),  color: sc(summary.avg_score)  },
+                  { label: "Pass rate",  value: pct(summary.pass_rate),   color: sc(summary.pass_rate)  },
                   { label: "Passed",     value: `${summary.pass_count}/${summary.total}`, color: "var(--text-primary)" },
                   { label: "Run time",   value: elapsed > 0 ? fmtTime(elapsed) : "—", color: "var(--text-muted)" },
                 ].map(s => (
@@ -364,21 +381,22 @@ export default function EvalPage() {
                   <span style={{ color: "var(--text-muted)" }} className="text-[10px]">{results.length}</span>
                 </button>
                 {categories.map(cat => {
-                  const s = CAT_STYLE[cat] ?? { label: cat, color: "#94a3b8", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.35)" };
+                  const s = CAT_STYLE[cat] ?? { label: cat, colorDark: "#94a3b8", colorLight: "#475569", bg: "rgba(148,163,184,0.1)", border: "rgba(148,163,184,0.35)" };
+                  const catColor = isLight ? s.colorLight : s.colorDark;
                   const count = results.filter(r => r.category === cat).length;
                   const catSummary = summary?.by_category[cat];
                   return (
                     <button key={cat} onClick={() => setFilter(cat)}
                       className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs text-left"
                       style={{
-                        background: filter === cat ? s.bg : "transparent",
+                        background: filter === cat ? chipBg(s.bg) : "transparent",
                         border: `1px solid ${filter === cat ? s.border : "transparent"}`,
                         color: filter === cat ? "var(--text-primary)" : "var(--text-secondary)",
                       }}>
                       <span>{s.label}</span>
                       <div className="flex items-center gap-1.5">
                         {catSummary && (
-                          <span className="text-[10px] font-mono" style={{ color: scoreColor(catSummary.avg) }}>
+                          <span className="text-[10px] font-mono" style={{ color: sc(catSummary.avg) }}>
                             {pct(catSummary.avg)}
                           </span>
                         )}
@@ -414,7 +432,8 @@ export default function EvalPage() {
             )}
 
             {filtered.map(r => {
-              const s = CAT_STYLE[r.category] ?? { label: r.category, color: "#94a3b8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.25)" };
+              const s = CAT_STYLE[r.category] ?? { label: r.category, colorDark: "#94a3b8", colorLight: "#475569", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.25)" };
+              const catColor = isLight ? s.colorLight : s.colorDark;
               const isOpen = expanded === r.tc_id;
               return (
                 <div key={r.tc_id}
@@ -426,7 +445,7 @@ export default function EvalPage() {
                     style={{ background: isOpen ? "rgba(249,115,22,0.03)" : "transparent" }}>
                     {/* Score circle */}
                     <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                      style={{ background: r.passed ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", color: scoreColor(r.score), border: `1.5px solid ${scoreColor(r.score)}` }}>
+                      style={{ background: r.passed ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", color: sc(r.score), border: `1.5px solid ${sc(r.score)}` }}>
                       {pct(r.score)}
                     </div>
 
@@ -434,18 +453,18 @@ export default function EvalPage() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{r.tc_id}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                          style={{ background: s.bg, color: s.color }}>
+                          style={{ background: chipBg(s.bg), color: catColor }}>
                           {s.label}
                         </span>
                         {r.has_artifact && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(249,115,22,0.1)", color: "#f97316" }}>
+                            style={{ background: chipBg("rgba(249,115,22,0.1)"), color: "#f97316" }}>
                             ⬡ {r.artifact_types[0] ?? "artifact"}
                           </span>
                         )}
                         {r.must_not_violated && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
+                            style={{ background: chipBg("rgba(239,68,68,0.1)"), color: isLight ? "#dc2626" : "#f87171" }}>
                             ⚠ must_not violated
                           </span>
                         )}
@@ -471,7 +490,7 @@ export default function EvalPage() {
                             Actual Response
                           </p>
                           <div className="rounded-lg p-3 text-xs leading-relaxed"
-                            style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                            style={{ background: isLight ? "var(--bg-card)" : "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
                             {r.response || <span style={{ color: "var(--text-muted)" }}>[no response]</span>}
                           </div>
                           {/* Artifacts generated */}
@@ -491,7 +510,7 @@ export default function EvalPage() {
                             {r.sources_found.length > 0
                               ? r.sources_found.map((p, i) => (
                                   <span key={i} className="text-[10px] px-1.5 py-0.5 rounded"
-                                    style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>p{p}</span>
+                                    style={{ background: chipBg("rgba(96,165,250,0.1)"), color: isLight ? "#1d4ed8" : "#60a5fa" }}>p{p}</span>
                                 ))
                               : <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>none</span>
                             }
@@ -504,7 +523,7 @@ export default function EvalPage() {
                             Ground Truth
                           </p>
                           <div className="rounded-lg p-3 space-y-2.5"
-                            style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}>
+                            style={{ background: isLight ? "var(--bg-card)" : "var(--bg-primary)", border: "1px solid var(--border)" }}>
                             {/* Key facts */}
                             {r.key_facts?.length > 0 && (
                               <div>
@@ -525,7 +544,7 @@ export default function EvalPage() {
                                 <div className="flex flex-wrap gap-1">
                                   {r.must_mention.map((m, i) => (
                                     <span key={i} className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-                                      style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80" }}>{m}</span>
+                                      style={{ background: chipBg("rgba(74,222,128,0.1)"), color: isLight ? "#15803d" : "#4ade80" }}>{m}</span>
                                   ))}
                                 </div>
                               </div>
@@ -537,7 +556,7 @@ export default function EvalPage() {
                                 <div className="flex flex-wrap gap-1">
                                   {r.must_not_claim.map((m, i) => (
                                     <span key={i} className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-                                      style={{ background: r.must_not_violated ? "rgba(248,113,113,0.15)" : "rgba(248,113,113,0.08)", color: "#f87171" }}>{m}</span>
+                                      style={{ background: chipBg(r.must_not_violated ? "rgba(248,113,113,0.15)" : "rgba(248,113,113,0.08)"), color: isLight ? "#dc2626" : "#f87171" }}>{m}</span>
                                   ))}
                                 </div>
                                 {r.must_not_violated && (
@@ -551,7 +570,7 @@ export default function EvalPage() {
                                 <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>Expected pages:</span>
                                 {r.sources_expected.map((s, i) => (
                                   <span key={i} className="text-[10px] px-1.5 py-0.5 rounded"
-                                    style={{ background: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>{s}</span>
+                                    style={{ background: chipBg("rgba(96,165,250,0.1)"), color: isLight ? "#1d4ed8" : "#60a5fa" }}>{s}</span>
                                 ))}
                               </div>
                             )}

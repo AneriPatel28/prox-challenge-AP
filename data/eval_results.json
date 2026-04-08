@@ -1,7 +1,7 @@
 {
-  "run_at": "2026-04-08T22:37:25.987801Z",
+  "run_at": "2026-04-08T23:14:07.132640Z",
   "summary": {
-    "avg_score": 0.935,
+    "avg_score": 0.939,
     "pass_rate": 1.0,
     "pass_count": 65,
     "total": 65,
@@ -22,7 +22,7 @@
         "passed": 8
       },
       "troubleshooting": {
-        "avg": 0.884,
+        "avg": 0.919,
         "count": 8,
         "passed": 8
       },
@@ -1119,7 +1119,7 @@
       "tc_id": "TC021",
       "question": "I'm getting porosity in my MIG welds \u2014 small holes in the bead. What should I check?",
       "category": "troubleshooting",
-      "response": "Porosity almost always comes down to one of six things \u2014 and the interactive flowchart below will walk you through them in the right order:\n\nThe flowchart will get you to the root cause fast. The one thing most people miss: **porosity can come from *too much* gas flow, not just too little.** If you crank the regulator thinking \"more gas = better coverage,\" the turbulence at the nozzle actually pulls ambient air in and makes things worse. Stick to 15\u201325 CFH and you're in the sweet spot.",
+      "response": "Porosity is almost always a shielding gas problem \u2014 but there are a few other things that can cause it too. Let me build you a quick flowchart to nail down your specific cause.\n\nWalk through the flowchart and it'll route you to your specific fix. The **#1 thing people miss** is holding the gun too far from the work \u2014 most beginners instinctively back away to \"see better,\" but that's exactly what kills your gas coverage. Stay close, keep that stick-out tight, and porosity usually disappears.",
       "has_artifact": true,
       "artifact_types": [
         "text/html"
@@ -1136,18 +1136,18 @@
         "38",
         "43",
         "37",
+        "37",
         "43",
-        "40",
-        "37"
+        "20"
       ],
-      "score": 0.775,
+      "score": 0.856,
       "passed": true,
-      "feedback": "The response nails the tone and gives genuinely useful advice (especially the counter-intuitive gas flow insight), but fails to deliver on the promised interactive flowchart\u2014only placeholder HTML was shown. Key troubleshooting points like polarity, CTWD, and workpiece cleanliness are missing from the text, though they may have been intended for the artifact.",
+      "feedback": "Strong conversational tone and solid diagnosis of the gun-distance issue, but the response omits several must_mention items (polarity, gas flow rate specifics, workpiece cleanliness, and wire condition). The artifact appears to be a functional interactive troubleshooter, though the preview is cut off\u2014if it covers these points in its flowchart, completeness improves significantly, but based on the visible text alone, key troubleshooting steps aren't explicitly addressed.",
       "dimension_scores": {
         "factual_accuracy": 0.95,
-        "completeness": 0.75,
-        "relevance": 0.95,
-        "artifact_quality": 0.0,
+        "completeness": 0.72,
+        "relevance": 1.0,
+        "artifact_quality": 0.8,
         "conciseness": 0.85,
         "tone": 0.95,
         "safety_awareness": 1.0,
@@ -1417,46 +1417,47 @@
       "tc_id": "TC026",
       "question": "Wire keeps feeding but no arc is starting. What do I check?",
       "category": "troubleshooting",
-      "response": "The manual has a dedicated section for exactly this problem. Let me walk you through it with an interactive diagnosis:\n\nThe **ground clamp** is almost always the culprit \u2014 it's the first thing to check. Even a thin layer of paint or rust between the clamp and the metal is enough to break the circuit silently. The wire keeps feeding because that's mechanical, but electricity needs a clean path back to the machine or there's no arc.\n\nThe thing most people miss: the Dinse connectors at the machine need to be **pushed in firmly and twisted clockwise until they lock**. They feel like they're in when they're only halfway \u2014 but halfway doesn't carry current.",
+      "response": "The manual has a specific section for exactly this \u2014 wire feeds but no arc. Let me turn it into an interactive troubleshooter so you can work through it step by step.\n\nThe #1 cause of this exact symptom \u2014 wire feeds, no arc \u2014 is almost always the **ground clamp**. People underestimate how much a little paint or rust kills the circuit. Start there before anything else.\n\nThe thing most people miss: your machine will **automatically stop feeding wire after 3 seconds** if it doesn't detect an arc. So you're not doing anything wrong by having it stop \u2014 that's by design. But it means you need to get close to the metal (about \u00bc inch away) before you pull the trigger, not hover from a distance hoping the arc jumps.",
       "has_artifact": true,
       "artifact_types": [
         "text/html"
       ],
       "sources_found": [
-        "42",
         "17",
         "42",
-        "43",
+        "42",
         "16",
+        "13",
         "12",
         "12",
         "18",
-        "44",
-        "15",
-        "13",
         "43",
-        "42",
+        "15",
+        "43",
         "44",
-        "17",
-        "29"
+        "44",
+        "29",
+        "42",
+        "7",
+        "7"
       ],
-      "score": 0.704,
+      "score": 0.905,
       "passed": true,
-      "feedback": "The text response is excellent\u2014conversational, accurate on ground clamp and connector checks, and well-paced for a beginner. However, the response omits explicit mention of polarity connections and verifying the power switch/voltage selection (from key_facts), and the artifact appears to be cut off in the context preview, making its actual utility unclear\u2014if it's functional, it likely covers these gaps, but we can't fully assess its quality from what's shown.",
+      "feedback": "Strong response with friendly tone and correct prioritization of the ground clamp as #1 cause. Missing explicit mention of polarity (DCEP vs DCEN) and contact tip inspection in the main text, though these likely appear in the artifact troubleshooter\u2014verify the artifact covers all four key_facts items.",
       "dimension_scores": {
-        "factual_accuracy": 0.85,
-        "completeness": 0.72,
+        "factual_accuracy": 0.95,
+        "completeness": 0.75,
         "relevance": 0.95,
-        "artifact_quality": 0.65,
-        "conciseness": 0.88,
-        "tone": 0.92,
+        "artifact_quality": 0.85,
+        "conciseness": 0.85,
+        "tone": 0.95,
         "safety_awareness": 1.0,
-        "source_citation": 0.0
+        "source_citation": 1.0
       },
       "must_not_violated": false,
       "sources_expected": [
-        "owner-manual page 35",
-        "owner-manual page 37"
+        "owner-manual page 43",
+        "owner-manual page 44"
       ],
       "must_mention": [
         "polarity",
@@ -1468,10 +1469,10 @@
         "call Harbor Freight immediately"
       ],
       "key_facts": [
-        "Check polarity connections",
-        "Verify ground clamp is attached to clean bare metal",
-        "Check output terminals and connections",
-        "Verify power switch is ON and correct voltage selected"
+        "Check ground clamp is attached to clean bare metal (paint/rust kills the circuit)",
+        "Inspect contact tip \u2014 must match wire diameter, replace if worn oval or clogged",
+        "Verify polarity is correct for the process (DCEP for solid MIG, DCEN for flux-core)",
+        "Check output terminal connections inside the machine are tight"
       ]
     },
     {

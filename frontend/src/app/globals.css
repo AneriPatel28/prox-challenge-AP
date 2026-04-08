@@ -7,26 +7,26 @@
 /* ── Base ── */
 @layer base {
   :root {
-    --bg-primary:    #f5f4f1;
-    --bg-secondary:  #ffffff;
-    --bg-card:       #fafaf8;
+    --bg-primary:    #e8e5e0;   /* warm stone — clearly distinct from cards */
+    --bg-secondary:  #f5f3ef;   /* mid layer */
+    --bg-card:       #ffffff;   /* pure white cards lift clearly off bg */
     --sidebar-bg:    #111113;
     --accent:        #ea580c;
-    --accent-glow:   rgba(234, 88, 12, 0.25);
-    --text-primary:  #111827;
-    --text-secondary:#6b7280;
-    --text-muted:    #9ca3af;
-    --border:        #e5e7eb;
-    --border-subtle: #f3f4f6;
+    --accent-glow:   rgba(234, 88, 12, 0.2);
+    --text-primary:  #0f172a;   /* near-black for max heading contrast */
+    --text-secondary:#334155;   /* dark slate — readable body text */
+    --text-muted:    #64748b;   /* medium slate — captions, labels */
+    --border:        #cbd5e1;   /* visible but not harsh */
+    --border-subtle: #e2e8f0;
     --user-bubble:   #fff7ed;
     --user-border:   #fed7aa;
-    --hero-rgb:       245, 244, 241;
-    --hero-heading:   #1a4480;
-    --hero-sub:       rgba(26, 68, 128, 0.6);
-    --hero-scroll:    rgba(26, 68, 128, 0.7);
-    --hero-badge-bg:  rgba(26, 68, 128, 0.1);
-    --hero-badge-border: rgba(26, 68, 128, 0.3);
-    --hero-badge-text:   #1a4480;
+    --hero-rgb:       232, 229, 224;
+    --hero-heading:   #0f172a;
+    --hero-sub:       #475569;
+    --hero-scroll:    #94a3b8;
+    --hero-badge-bg:  rgba(15, 23, 42, 0.07);
+    --hero-badge-border: rgba(15, 23, 42, 0.18);
+    --hero-badge-text:   #0f172a;
   }
 
   .dark {
@@ -242,8 +242,8 @@
 :root:not(.dark) .hero-gradient-side {
   background: linear-gradient(
     to right,
-    rgba(245, 244, 241, 0.88) 0%,
-    rgba(245, 244, 241, 0.6)  35%,
+    rgba(232, 229, 224, 0.65) 0%,
+    rgba(232, 229, 224, 0.3)  35%,
     transparent 70%
   );
 }
