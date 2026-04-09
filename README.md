@@ -11,23 +11,32 @@ A multimodal reasoning agent for the Vulcan OmniPro 220 welder, built on the Ant
 ```bash
 git clone -b prox-challenge-ap https://github.com/AneriPatel28/prox-challenge-AP.git
 cd prox-challenge-AP
+```
 
+```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
+```
 
+```bash
 cp .env.example .env               # add your ANTHROPIC_API_KEY
 cp frontend/.env.local.example frontend/.env.local
+```
 
+```bash
 pip install -r requirements.txt
+```
+
+```bash
 npm install
 cd frontend && npm install && cd ..
+```
 
+```bash
 npm run dev
 ```
 
 Open the frontend at port 3000. Backend runs on port 8090.
-
-> ChromaDB, pre-processed knowledge base, and PDFs are all committed — no preprocessing step needed.
 
 > ChromaDB, pre-processed knowledge base, and PDFs are all committed - no preprocessing step needed.
 
