@@ -1,0 +1,9 @@
+.venv
+.venv-preprocess
+__pycache__
+*.pyc
+*.pyo
+.env
+data/chroma_memory
+data/feedback.jsonl
+data/user_feedback.jsonl
