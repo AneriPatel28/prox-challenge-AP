@@ -14,13 +14,12 @@ cd prox-challenge-AP
 ```
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate # Windows: .venv\Scripts\activate
 ```
-
+Add Anthropic API key
 ```bash
-cp .env.example .env               # add your ANTHROPIC_API_KEY
-cp frontend/.env.local.example frontend/.env.local
+cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
+#Add Anthropic API key
 ```
 
 ```bash
@@ -28,8 +27,7 @@ pip install -r requirements.txt
 ```
 
 ```bash
-npm install
-cd frontend && npm install && cd ..
+npm install && cd frontend && npm install && cd ..
 ```
 
 ```bash
