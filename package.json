@@ -1,5 +1,13 @@
 {
+  "name": "omnipro-220-ai",
+  "scripts": {
+    "dev": "concurrently \"uvicorn backend.main:app --reload --port 8000\" \"cd frontend && npm run dev\"",
+    "install:all": "pip install -r requirements.txt && cd frontend && npm install",
+    "frontend": "cd frontend && npm run dev",
+    "backend": "uvicorn backend.main:app --reload --port 8000"
+  },
   "dependencies": {
+    "concurrently": "^9.0.0",
     "next-themes": "^0.4.6"
   }
 }
