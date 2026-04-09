@@ -16,7 +16,7 @@ cd prox-challenge-AP
 ```bash
 python -m venv .venv && source .venv/bin/activate # Windows: .venv\Scripts\activate
 ```
-Add Anthropic API key
+
 ```bash
 cp .env.example .env && cp frontend/.env.local.example frontend/.env.local
 #Add Anthropic API key
