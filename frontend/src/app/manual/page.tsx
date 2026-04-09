@@ -13,7 +13,6 @@ const DOCS = [
     filename: "owner-manual.pdf",
     title: "Owner's Manual",
     desc: "Complete reference: specs, setup, operation, maintenance, troubleshooting",
-    pages: 68,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -25,7 +24,6 @@ const DOCS = [
     filename: "quick-start-guide.pdf",
     title: "Quick Start Guide",
     desc: "First-time setup: unboxing, connections, first weld in minutes",
-    pages: 12,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="5 3 19 12 5 21 5 3"/>
@@ -37,7 +35,6 @@ const DOCS = [
     filename: "selection-chart.pdf",
     title: "Selection Chart",
     desc: "Wire gauge, amperage, voltage, and gas reference tables",
-    pages: 4,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
@@ -137,7 +134,6 @@ function ManualPageInner() {
                   </span>
                 </div>
                 <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{d.desc}</p>
-                <p className="text-[10px] mt-1.5 font-mono" style={{ color: "var(--text-muted)" }}>{d.pages} pages</p>
               </button>
             ))}
           </div>

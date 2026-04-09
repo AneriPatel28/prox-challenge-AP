@@ -36,13 +36,9 @@ __pycache__/
 # Virtual environment
 .venv/
 
-# Large generated files — reproducible by running preprocess.py + embed_and_store.py
-data/images/
-data/chroma/
+# Ephemeral memory (regenerated at runtime)
 data/chroma_memory/
 
-# Source PDFs (copyrighted)
-files/
 
 # Test scratch file
 test.md
