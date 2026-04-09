@@ -22,7 +22,7 @@ cd frontend && npm install && cd ..
 npm run dev
 ```
 
-Open http://localhost:3000. Backend runs on http://localhost:8090.
+Open the frontend at port 3000. Backend runs on port 8090.
 
 > ChromaDB, pre-processed knowledge base, and PDFs are all committed - no preprocessing step needed.
 
