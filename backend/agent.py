@@ -257,7 +257,8 @@ def get_page_image(source: str, page: int) -> dict:
     }
 
 
-_PAGE_REF_RE = re.compile(r'\b(?:page|p\.)\s*(\d+)', re.IGNORECASE)
+_PAGE_REF_RE    = re.compile(r'\b(?:page|p\.)\s*(\d+)', re.IGNORECASE)
+_IMPLICIT_RE    = re.compile(r'\b(above|below|previous|following|earlier|preceding|next section|as shown)\b', re.IGNORECASE)
 
 def resolve_cross_references(chunks: list[dict], query: str, max_extra: int = 3) -> list[dict]:
     """
@@ -845,10 +846,14 @@ def run_agent(
                     )
                     top_score = result[0]["score"] if result else 0
                     log.info("search_manual → %d chunks, top score: %.4f", len(result), top_score)
-                    # 1. Explicit cross-refs: "see page X" → ranked fetch of that page
-                    result = resolve_cross_references(result, query=query)
-                    # 2. Implicit continuity: fetch relevant chunks from N±1 pages
-                    result = expand_neighbors(result, query=query)
+                    # Route based on reference type found in chunks:
+                    # explicit "page N" → targeted fetch; implicit above/below → neighbor expansion; neither → skip both
+                    has_page_ref     = any(_PAGE_REF_RE.search(c["text"]) for c in result)
+                    has_implicit_ref = any(_IMPLICIT_RE.search(c["text"]) for c in result)
+                    if has_page_ref:
+                        result = resolve_cross_references(result, query=query)
+                    elif has_implicit_ref:
+                        result = expand_neighbors(result, query=query)
                     all_sources.extend(result)
                     emit("thinking", message=f"Found {len(result)} relevant sections (relevance: {int(top_score * 100)}%)")
                 except Exception as e:
