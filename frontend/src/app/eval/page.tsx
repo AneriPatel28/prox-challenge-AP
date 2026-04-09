@@ -65,6 +65,10 @@ interface Summary {
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const scoreColor = (s: number) => s >= 0.85 ? "#4ade80" : s >= 0.70 ? "#fbbf24" : "#f87171";
+const sc = (s: number, light = false) =>
+  s >= 0.85 ? (light ? "#15803d" : "#4ade80")
+  : s >= 0.70 ? (light ? "#b45309" : "#fbbf24")
+  : (light ? "#dc2626" : "#f87171");
 const fmtTime = (s: number) => {
   const m = Math.floor(s / 60);
   const sec = s % 60;
@@ -82,7 +86,7 @@ const DIM_TOOLTIPS: Record<string, string> = {
   "safety_awareness": "Are safety warnings present where the situation demands them? Electrical hazards, PPE, fire risk. Score 1.0 if the question has no safety dimension — no penalty for not adding unnecessary warnings.",
 };
 
-function DimBar({ label, value, dimKey }: { label: string; value: number; dimKey?: string }) {
+function DimBar({ label, value, dimKey, isLight = false }: { label: string; value: number; dimKey?: string; isLight?: boolean }) {
   const tooltip = dimKey ? DIM_TOOLTIPS[dimKey] : undefined;
   return (
     <div className="flex items-center gap-2 group relative">
@@ -94,9 +98,9 @@ function DimBar({ label, value, dimKey }: { label: string; value: number; dimKey
         </div>
       )}
       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-        <div className="h-full rounded-full transition-all" style={{ width: pct(value), background: sc(value) }} />
+        <div className="h-full rounded-full transition-all" style={{ width: pct(value), background: sc(value, isLight) }} />
       </div>
-      <span className="text-[10px] w-7 text-right font-mono" style={{ color: sc(value) }}>{pct(value)}</span>
+      <span className="text-[10px] w-7 text-right font-mono" style={{ color: sc(value, isLight) }}>{pct(value)}</span>
     </div>
   );
 }
@@ -129,11 +133,6 @@ export default function EvalPage() {
 
   // Theme-aware helpers
   const chipBg   = (rgba: string) => isLight ? rgba.replace(/[\d.]+\)$/, "0.18)") : rgba;
-  const sc       = (s: number) => s >= 0.85
-    ? (isLight ? "#15803d" : "#4ade80")
-    : s >= 0.70
-    ? (isLight ? "#b45309" : "#fbbf24")
-    : (isLight ? "#dc2626" : "#f87171");
 
   const [running, setRunning]     = useState(false);
   const [results, setResults]     = useState<EvalResult[]>([]);
@@ -353,8 +352,8 @@ export default function EvalPage() {
             {summary && (
               <div className="px-4 py-3 flex-shrink-0 space-y-2" style={{ borderBottom: "1px solid var(--border)" }}>
                 {[
-                  { label: "Avg score",  value: pct(summary.avg_score),  color: sc(summary.avg_score)  },
-                  { label: "Pass rate",  value: pct(summary.pass_rate),   color: sc(summary.pass_rate)  },
+                  { label: "Avg score",  value: pct(summary.avg_score),  color: sc(summary.avg_score, isLight)  },
+                  { label: "Pass rate",  value: pct(summary.pass_rate),   color: sc(summary.pass_rate, isLight)  },
                   { label: "Passed",     value: `${summary.pass_count}/${summary.total}`, color: "var(--text-primary)" },
                   { label: "Run time",   value: elapsed > 0 ? fmtTime(elapsed) : "—", color: "var(--text-muted)" },
                 ].map(s => (
@@ -396,7 +395,7 @@ export default function EvalPage() {
                       <span>{s.label}</span>
                       <div className="flex items-center gap-1.5">
                         {catSummary && (
-                          <span className="text-[10px] font-mono" style={{ color: sc(catSummary.avg) }}>
+                          <span className="text-[10px] font-mono" style={{ color: sc(catSummary.avg, isLight) }}>
                             {pct(catSummary.avg)}
                           </span>
                         )}
@@ -445,7 +444,7 @@ export default function EvalPage() {
                     style={{ background: isOpen ? "rgba(249,115,22,0.03)" : "transparent" }}>
                     {/* Score circle */}
                     <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                      style={{ background: r.passed ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", color: sc(r.score), border: `1.5px solid ${sc(r.score)}` }}>
+                      style={{ background: r.passed ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", color: sc(r.score, isLight), border: `1.5px solid ${sc(r.score, isLight)}` }}>
                       {pct(r.score)}
                     </div>
 
@@ -594,17 +593,17 @@ export default function EvalPage() {
                         return (
                           <div className="space-y-1.5">
                             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-muted)" }}>Dimension Scores</p>
-                            <DimBar label={`Factual accuracy (${w(0.25)})`} value={r.dimension_scores.factual_accuracy} dimKey="factual_accuracy" />
-                            <DimBar label={`Completeness (${w(0.20)})`}     value={r.dimension_scores.completeness}     dimKey="completeness"     />
-                            <DimBar label={`Relevance (${w(0.15)})`}        value={r.dimension_scores.relevance}        dimKey="relevance"        />
-                            <DimBar label="Source citation (0.15)"          value={r.dimension_scores.source_citation ?? 1} dimKey="source_citation" />
+                            <DimBar label={`Factual accuracy (${w(0.25)})`} value={r.dimension_scores.factual_accuracy} dimKey="factual_accuracy" isLight={isLight} />
+                            <DimBar label={`Completeness (${w(0.20)})`}     value={r.dimension_scores.completeness}     dimKey="completeness"     isLight={isLight} />
+                            <DimBar label={`Relevance (${w(0.15)})`}        value={r.dimension_scores.relevance}        dimKey="relevance"        isLight={isLight} />
+                            <DimBar label="Source citation (0.15)"          value={r.dimension_scores.source_citation ?? 1} dimKey="source_citation" isLight={isLight} />
                             {hasArt
-                              ? <DimBar label="Artifact quality (0.10)"     value={r.dimension_scores.artifact_quality!} dimKey="artifact_quality" />
+                              ? <DimBar label="Artifact quality (0.10)"     value={r.dimension_scores.artifact_quality!} dimKey="artifact_quality" isLight={isLight} />
                               : <DimBarNA label="Artifact quality (excluded — none generated)" />
                             }
-                            <DimBar label={`Conciseness (${w(0.05)})`}      value={r.dimension_scores.conciseness ?? 0.5} dimKey="conciseness"  />
-                            <DimBar label={`Tone (${w(0.05)})`}             value={r.dimension_scores.tone}               dimKey="tone"         />
-                            <DimBar label={`Safety awareness (${w(0.05)})`} value={r.dimension_scores.safety_awareness}   dimKey="safety_awareness" />
+                            <DimBar label={`Conciseness (${w(0.05)})`}      value={r.dimension_scores.conciseness ?? 0.5} dimKey="conciseness"  isLight={isLight} />
+                            <DimBar label={`Tone (${w(0.05)})`}             value={r.dimension_scores.tone}               dimKey="tone"         isLight={isLight} />
+                            <DimBar label={`Safety awareness (${w(0.05)})`} value={r.dimension_scores.safety_awareness}   dimKey="safety_awareness" isLight={isLight} />
                           </div>
                         );
                       })()}

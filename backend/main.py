@@ -78,10 +78,12 @@ app = FastAPI(
     version     = "1.0.0",
 )
 
-# CORS — allow Next.js frontend on any port during development
+# CORS — allow frontend origin (env var in prod, wildcard in dev)
+import os as _os
+_frontend_url = _os.getenv("FRONTEND_URL", "*")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins     = ["*"],   # tighten to frontend URL in production
+    allow_origins     = [_frontend_url] if _frontend_url != "*" else ["*"],
     allow_methods     = ["*"],
     allow_headers     = ["*"],
 )

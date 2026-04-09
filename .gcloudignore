@@ -1,0 +1,30 @@
+.gcloudignore
+.git
+.gitignore
+
+# Python
+.venv
+.venv-preprocess
+__pycache__
+*.pyc
+*.pyo
+
+# Node
+node_modules
+frontend/node_modules
+frontend/.next
+
+# Large/unnecessary files at root level only
+"Screenshot 2026-04-08 at 9.24.43 AM.png"
+template_calculator_preview.html
+template_calculator_preview.html
+test.md
+NOTES.md
+requirements-preprocess.txt
+
+# Chroma memory (ephemeral)
+data/chroma_memory
+
+# Local env
+.env
+frontend/.env.local

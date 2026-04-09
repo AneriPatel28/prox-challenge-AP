@@ -13,7 +13,7 @@ export default function ChatInput({ onSend, onStop, disabled }: Props) {
   const [sparked, setSparked]   = useState(false);
   const [listening, setListening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -51,10 +51,10 @@ export default function ChatInput({ onSend, onStop, disabled }: Props) {
       return;
     }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const rec = new SR() as SpeechRecognition;
+    const rec = new SR();
     rec.lang = "en-US";
     rec.interimResults = false;
-    rec.onresult = (e) => {
+    rec.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript;
       setText(prev => prev ? prev + " " + transcript : transcript);
     };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -47,7 +47,7 @@ const DOCS = [
   },
 ];
 
-export default function ManualPage() {
+function ManualPageInner() {
   const searchParams = useSearchParams();
   const [activeDoc, setActiveDoc] = useState(DOCS[0]);
   const [targetPage, setTargetPage] = useState<number | null>(null);
@@ -155,5 +155,13 @@ export default function ManualPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ManualPage() {
+  return (
+    <Suspense>
+      <ManualPageInner />
+    </Suspense>
   );
 }

@@ -119,11 +119,6 @@ export default function ArtifactFrame({ artifact }: Props) {
     if (figures.length > 0) {
       return (
         <div className="w-full flex flex-col items-center p-4 gap-4">
-          {artifact.title && (
-            <p className="text-xs font-semibold self-start" style={{ color: "var(--text-muted)" }}>
-              {artifact.title}
-            </p>
-          )}
           {figures.map((src, i) => (
             <img
               key={i}
@@ -180,11 +175,6 @@ export default function ArtifactFrame({ artifact }: Props) {
             borderRadius: "8px",
           }}
         />
-        {artifact.title && (
-          <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-            {artifact.title}
-          </p>
-        )}
       </div>
     );
   }

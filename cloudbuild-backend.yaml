@@ -1,0 +1,32 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - -f
+      - backend/Dockerfile
+      - -t
+      - gcr.io/$PROJECT_ID/omnipro-backend:latest
+      - .
+    timeout: 1200s
+
+  - name: "gcr.io/cloud-builders/docker"
+    args: [push, gcr.io/$PROJECT_ID/omnipro-backend:latest]
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - omnipro-backend
+      - --image=gcr.io/$PROJECT_ID/omnipro-backend:latest
+      - --platform=managed
+      - --region=us-central1
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --cpu=2
+      - --timeout=300
+      - --set-env-vars=ANTHROPIC_API_KEY=${_ANTHROPIC_KEY}
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
