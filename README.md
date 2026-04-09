@@ -3,7 +3,7 @@
 A multimodal reasoning agent for the Vulcan OmniPro 220 welder, built on the Anthropic Claude Agent SDK. Not a chatbot that summarizes the manual - an agent that retrieves, reasons, and generates interactive responses tailored to what you actually asked.
 
 **[Live demo](https://omnipro-220-1092779878425.us-central1.run.app/)** · **[Watch the walkthrough](https://www.loom.com/share/486af02564394132b4495c281df2cbaf)**
-Note: the walkthrough was recorded on an earlier build. The live app reflects all latest updates.
+> Note: the walkthrough was recorded on an earlier build. The live app reflects all latest updates.
 ---
 
 ## Quick Start
