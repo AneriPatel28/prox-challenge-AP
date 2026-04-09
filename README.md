@@ -12,7 +12,10 @@ A multimodal reasoning agent for the Vulcan OmniPro 220 welder, built on the Ant
 git clone -b prox-challenge-ap https://github.com/AneriPatel28/prox-challenge-AP.git
 cd prox-challenge-AP
 
-cp .env.example .env                           # add your ANTHROPIC_API_KEY
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+cp .env.example .env               # add your ANTHROPIC_API_KEY
 cp frontend/.env.local.example frontend/.env.local
 
 pip install -r requirements.txt
@@ -23,6 +26,8 @@ npm run dev
 ```
 
 Open the frontend at port 3000. Backend runs on port 8090.
+
+> ChromaDB, pre-processed knowledge base, and PDFs are all committed — no preprocessing step needed.
 
 > ChromaDB, pre-processed knowledge base, and PDFs are all committed - no preprocessing step needed.
 
@@ -70,15 +75,21 @@ The OmniPro 220 manual has 51 pages across 3 files containing mixed content: spe
 
 ### Two-path pipeline
 
-Every page is rendered to JPEG at 1.5x resolution using PyMuPDF. Pages are then classified:
+Every page is rendered to JPEG at 1.5x resolution using PyMuPDF, then routed based on content type:
 
-**Text pages** - extracted using PyMuPDF + pdfplumber, converted to structured markdown with `##` section headings.
+```mermaid
+flowchart LR
+    A([PDF Pages]) --> B[Render to JPEG\n1.5x resolution]
+    B --> C{Page type?}
+    C -- Text page --> D[PyMuPDF + pdfplumber\nStructured markdown]
+    C -- Vision page --> E[Claude Opus 4 Vision\ndescriptions + tables\n+ diagrams + safety notes]
+    D --> F[data/descriptions.json]
+    E --> F
 
-**Vision pages** - sent as JPEG to **Claude Opus 4 Vision** with a structured prompt that asks for:
-- A complete description of every element on the page
-- All values from tables (every duty cycle number, in order)
-- What each diagram shows and what the labels say
-- Any safety notes visible in the image
+    style A fill:#f97316,color:#fff,stroke:none
+    style E fill:#1e3a5f,color:#fff,stroke:#3b82f6
+    style C fill:#1a1a1a,color:#f0f0f0,stroke:#f97316
+```
 
 **Why Opus 4 for vision?** I tested Haiku and Sonnet. The quality difference on technical pages was significant. Haiku would return: *"a diagram showing cable connections."* Opus 4 returned: *"a wiring diagram showing the positive socket connects to the wire feed gun and the negative socket connects to the ground clamp - this configuration is DCEP, used for MIG solid wire welding."* That specificity is what makes retrieval work on polarity questions. Preprocessing runs once offline - the cost was justified by the output quality.
 
@@ -100,13 +111,20 @@ Displaying full-page images in the frontend would show too much unrelated conten
 
 A 500-word page describing both the duty cycle table and the wire installation procedure will retrieve for queries about either topic but return too much noise. Each chunk needs to represent a single concept.
 
-**Stage 1 - Markdown header splitting**
+```mermaid
+flowchart TD
+    A([descriptions.json]) --> B[Stage 1 - Markdown header splitting\nLangChain MarkdownHeaderTextSplitter\nheading kept in chunk text]
+    B --> C{Section > 400 tokens?}
+    C -- Yes --> D[Stage 2 - Recursive splitting\n50-token overlap]
+    C -- No --> E[Keep as single chunk]
+    D --> F[Snowflake Arctic embedding]
+    E --> F
+    F --> G([ChromaDB - 538 chunks])
 
-Since Step 1 produces structured markdown with `##` headings, we split at those headings first using LangChain's `MarkdownHeaderTextSplitter`. The heading is kept in the chunk text - not stripped - so the embedding captures context. A chunk starting with `## Wire Feed Tensioner Adjustment` will match "tensioner" queries even if the body doesn't repeat the word.
-
-**Stage 2 - Recursive splitting for oversized sections**
-
-Any section exceeding `MAX_TOKENS = 400` is recursively split with 50-token overlap. 400 tokens was chosen to stay well within Snowflake Arctic's 512-token limit, with a safety margin for tokenization approximation.
+    style A fill:#f97316,color:#fff,stroke:none
+    style G fill:#f97316,color:#fff,stroke:none
+    style C fill:#1a1a1a,color:#f0f0f0,stroke:#f97316
+```
 
 ### Embedding model - Snowflake Arctic
 
@@ -266,16 +284,17 @@ Each test case defines ground truth:
 
 The judge scores 8 dimensions per response:
 
-| Dimension | Weight |
-|-----------|--------|
-| Factual accuracy | 25% |
-| Completeness | 20% |
-| Relevance | 15% |
-| Source citation | 15% |
-| Artifact quality | 10% |
-| Conciseness | 5% |
-| Tone | 5% |
-| Safety awareness | 5% |
+```mermaid
+pie title Evaluation Dimensions
+    "Factual accuracy" : 25
+    "Completeness" : 20
+    "Relevance" : 15
+    "Source citation" : 15
+    "Artifact quality" : 10
+    "Conciseness" : 5
+    "Tone" : 5
+    "Safety awareness" : 5
+```
 
 **Key design decision:** `factual_accuracy` and `completeness` are deliberately separated. A response that omits information but states nothing wrong should score high on accuracy. Early versions conflated them - missing `must_mention` items would penalize the accuracy score, making it impossible to distinguish "said something wrong" from "didn't say enough." Fixing this separation caught a real scoring bug where the agent's correct statement ("standard MIG gun won't work for aluminum") was being penalized as a `must_not_claim` violation because the judge misread a negation.
 
