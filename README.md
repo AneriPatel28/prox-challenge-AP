@@ -200,11 +200,9 @@ search_manual(query, n_results=5)
 
 get_page_image(source, page)
 # Returns full-page JPEG URL + figure crop URLs for a specific manual page.
-
-ask_clarification(question)
-# Asks the user for missing context before answering.
-# Used when: material type unknown, thickness unknown, voltage unknown.
 ```
+
+Clarifying questions are handled via the system prompt - if a missing input would flip the answer (e.g. voltage, process, wire type), Claude asks before searching.
 
 ### Memory - Mem0
 
