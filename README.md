@@ -185,7 +185,7 @@ Manual chunks frequently reference other pages ("see page 11"). When detected, I
 
 ### Neighbor expansion
 
-After cross-reference resolution, `expand_neighbors()` fetches the most query-relevant chunk from pages N−1 and N+1 for each retrieved chunk (same source). This handles implicit continuity - procedures that spill across page boundaries or content that says "as described above." Neighbors are only added if their relevance score exceeds 0.4, so unrelated adjacent pages don't pollute the context.
+If cross-reference finds indirect hint then `expand_neighbors()` fetches the most query-relevant chunk from pages N−1 and N+1 for each retrieved chunk (same source). This handles implicit continuity - procedures that spill across page boundaries or content that says "as described above." Neighbors are only added if their relevance score exceeds 0.4, so unrelated adjacent pages don't pollute the context.
 
 ### Self-verification
 
